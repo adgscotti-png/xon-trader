@@ -49,7 +49,10 @@ class AppContainer(app: Application) {
 
     val tickerRepo = TickerRepository(api, ws, db.symbolsDao(), db.tickerCacheDao(), db.klinesDao(), appScope)
     val chartRepo = ChartRepository(api, db.klinesDao())
-    val watchlistRepo = WatchlistRepository(db.watchlistDao())
+    val watchlistRepo = WatchlistRepository(db.watchlistDao()).apply {
+        // Ogni modifica ai preferiti ridisegna subito i widget home screen.
+        onChanged = { com.adgent.trader.core.work.WidgetUpdateWorker.enqueueNow(app) }
+    }
     val alertRepo = AlertRepository(db.alertDao())
     val settingsRepo = SettingsRepository(app)
 }
@@ -63,6 +66,8 @@ class TraderApp : Application() {
         container = AppContainer(this)
         // Canali notifica + feed realtime se la modalità dati lo prevede.
         com.adgent.trader.core.notifications.Notifications.ensureChannels(this)
+        // Widget home screen: refresh periodico 15 min + subito ad ogni apertura app.
+        com.adgent.trader.core.work.WidgetUpdateWorker.schedule(this)
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             val mode = runCatching {
                 container.settingsRepo.settings.first().dataMode

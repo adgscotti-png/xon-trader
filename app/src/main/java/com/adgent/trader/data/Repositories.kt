@@ -15,6 +15,9 @@ import kotlinx.coroutines.flow.map
 
 class WatchlistRepository(private val dao: WatchlistDao) {
 
+    /** Notifica i listener (es. widget home screen) dopo ogni modifica. */
+    var onChanged: (suspend () -> Unit)? = null
+
     companion object {
         val DEFAULTS = listOf("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT")
     }
@@ -33,9 +36,13 @@ class WatchlistRepository(private val dao: WatchlistDao) {
 
     suspend fun add(symbol: String) {
         dao.upsert(WatchlistEntity(symbol, (dao.maxPosition() ?: -1) + 1, System.currentTimeMillis()))
+        onChanged?.invoke()
     }
 
-    suspend fun remove(symbol: String) = dao.delete(symbol)
+    suspend fun remove(symbol: String) {
+        dao.delete(symbol)
+        onChanged?.invoke()
+    }
 
     suspend fun contains(symbol: String): Boolean = dao.all().any { it.symbol == symbol }
 }

@@ -1,7 +1,7 @@
 # ADGENT TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: F2 grafici (dettaglio coin + grafico interattivo) — F1 committata e build verde`
+`WORKING-ON: F4 widget home screen (Glance 2×1 + 4×2, worker 15min) — F1/F2/F3 committate, build verde`
 
 ---
 
