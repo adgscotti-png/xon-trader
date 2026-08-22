@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">ADGENT TRADER</string>
+    <string name="widget_ticker_label">ADGENT — Prezzo</string>
+    <string name="widget_watchlist_label">ADGENT — Watchlist</string>
+    <string name="widget_ticker_desc">Prezzo live di una crypto sulla schermata home</string>
+    <string name="widget_watchlist_desc">Le tue crypto preferite con prezzi aggiornati</string>
 </resources>
