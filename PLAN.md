@@ -1,7 +1,7 @@
 # ADGENT TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: nessuno (F0 scaffold in corso — build ambiente Docker + skeleton Compose)`
+`WORKING-ON: F2 grafici (dettaglio coin + grafico interattivo) — F1 committata e build verde`
 
 ---
 
