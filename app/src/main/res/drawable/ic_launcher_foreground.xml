@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Glifo: tre candele giapponesi in crescita su fondo brand -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- candela 1 -->
+    <path
+        android:pathData="M32,50 h12 v18 h-12 z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M38,41 v37"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- candela 2 (più alta) -->
+    <path
+        android:pathData="M50,42 h12 v14 h-12 z"
+        android:fillColor="#FFFFFF" />
+    <path
+        android:pathData="M56,33 v33"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+
+    <!-- candela 3 (ancora più alta, magenta brand) -->
+    <path
+        android:pathData="M68,46 h12 v16 h-12 z"
+        android:fillColor="#E6007E" />
+    <path
+        android:pathData="M74,37 v35"
+        android:strokeColor="#E6007E"
+        android:strokeWidth="3"
+        android:strokeLineCap="round" />
+</vector>

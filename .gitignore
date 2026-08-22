@@ -1,0 +1,21 @@
+# Gradle
+.gradle/
+build/
+app/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Android Studio / build locali
+local.properties
+captures/
+.cxx/
+
+# Log e output
+*.log
+*.apk.idsig
+
+# macOS
+.DS_Store
