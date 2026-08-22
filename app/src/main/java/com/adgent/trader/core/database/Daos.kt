@@ -122,6 +122,9 @@ interface WatchlistDao {
     @Query("DELETE FROM watchlist WHERE symbol = :symbol")
     suspend fun delete(symbol: String)
 
+    @Query("DELETE FROM watchlist")
+    suspend fun clear()
+
     @Query("SELECT count(*) FROM watchlist")
     suspend fun count(): Int
 
@@ -153,6 +156,9 @@ interface AlertDao {
     @Query("SELECT * FROM alert_rules WHERE enabled = 1")
     suspend fun enabledRules(): List<AlertRuleEntity>
 
+    @Query("SELECT * FROM alert_rules ORDER BY createdAt DESC")
+    suspend fun all(): List<AlertRuleEntity>
+
     @Query("SELECT * FROM alert_rules WHERE id = :id")
     suspend fun byId(id: Long): AlertRuleEntity?
 
@@ -167,4 +173,7 @@ interface AlertDao {
 
     @Query("DELETE FROM alert_rules WHERE id = :id")
     suspend fun delete(id: Long)
+
+    @Query("DELETE FROM alert_rules")
+    suspend fun clear()
 }

@@ -6,6 +6,7 @@ import com.adgent.trader.AppContainer
 import com.adgent.trader.core.model.Kline
 import com.adgent.trader.core.model.Timeframe
 import com.adgent.trader.ui.chart.ChartMode
+import com.adgent.trader.ui.chart.OscKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -19,6 +20,8 @@ data class CoinDetailUiState(
     val showMa: Boolean = true,
     val showEma: Boolean = false,
     val showBb: Boolean = false,
+    /** Sub-chart oscillatore attivo (null = nessuno). */
+    val oscillator: com.adgent.trader.ui.chart.OscKind? = null,
     val livePrice: Double? = null,
     /** Statistiche 24h dal tick live (fallback cache via refreshTickers del mercati). */
     val changePercent24h: Double? = null,
@@ -75,6 +78,10 @@ class CoinDetailViewModel(
     }
 
     fun setChartMode(mode: ChartMode) = _state.update { it.copy(chartMode = mode) }
+
+    /** Seleziona/switcha-off il sub-chart oscillatore. */
+    fun setOscillator(kind: OscKind?) =
+        _state.update { it.copy(oscillator = if (it.oscillator == kind) null else kind) }
 
     /** Toggle degli overlay del grafico (mutuamente esclusivi MA/EMA). */
     fun toggleOverlay(kind: OverlayKind) {

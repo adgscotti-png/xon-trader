@@ -2,7 +2,7 @@ package com.adgent.trader
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -41,7 +41,8 @@ import com.adgent.trader.ui.settings.SettingsScreen
 import com.adgent.trader.ui.markets.MarketsScreen
 import com.adgent.trader.ui.theme.AdgentTraderTheme
 
-class MainActivity : ComponentActivity() {
+// FragmentActivity: richiesta da androidx.biometric.BiometricPrompt per il blocco app.
+class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -78,7 +79,9 @@ fun AdgentApp(handleIntent: Intent?) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
     AdgentTraderTheme(darkTheme = darkTheme) {
-        RootNav(settings = settings, handleIntent = handleIntent)
+        com.adgent.trader.ui.lock.AppLockGate(enabled = settings?.appLock == true) {
+            RootNav(settings = settings, handleIntent = handleIntent)
+        }
     }
 }
 

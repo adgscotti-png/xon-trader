@@ -78,4 +78,7 @@ dependencies {
     // Widget home screen
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+
+    // Blocco app con biometria/PIN del dispositivo
+    implementation(libs.androidx.biometric)
 }

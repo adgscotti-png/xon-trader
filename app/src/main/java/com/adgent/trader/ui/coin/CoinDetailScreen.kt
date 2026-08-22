@@ -51,6 +51,8 @@ import com.adgent.trader.core.model.Timeframe
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.chart.CandleChart
 import com.adgent.trader.ui.chart.ChartMode
+import com.adgent.trader.ui.chart.OscKind
+import com.adgent.trader.ui.chart.OscillatorPanel
 import com.adgent.trader.ui.components.CoinBadge
 import com.adgent.trader.ui.components.ChangeBadge
 
@@ -177,6 +179,43 @@ fun CoinDetailScreen(
                     showBb = state.showBb,
                     onToggle = vm::toggleOverlay,
                 )
+
+                // ---------- Sub-chart oscillatore (RSI/MACD) ----------
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OscKind.entries.forEach { k ->
+                        val active = state.oscillator == k
+                        Text(
+                            k.label,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                            color = if (active) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .background(
+                                    color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                    else androidx.compose.ui.graphics.Color.Transparent,
+                                    shape = RoundedCornerShape(8.dp),
+                                )
+                                .padding(horizontal = 10.dp, vertical = 4.dp)
+                                .clickable { vm.setOscillator(k) },
+                        )
+                    }
+                }
+                state.oscillator?.let { osc ->
+                    if (state.klines.isNotEmpty()) {
+                        OscillatorPanel(
+                            klines = state.klines,
+                            kind = osc,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
             }
         }
 

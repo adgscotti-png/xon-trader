@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -42,7 +43,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(container: AppContainer) : ViewModel() {
+class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     val settings: StateFlow<Settings?> = container.settingsRepo.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
@@ -55,6 +56,64 @@ class SettingsViewModel(container: AppContainer) : ViewModel() {
     fun setDataMode(context: android.content.Context, mode: DataMode) = viewModelScope.launch {
         repo.setDataMode(mode)
         PriceFeedController.applyMode(context, mode)
+    }
+
+    fun setAppLock(enabled: Boolean) = viewModelScope.launch { repo.setAppLock(enabled) }
+
+    /** Esporta watchlist + avvisi su file JSON scelto con SAF. */
+    suspend fun exportBackup(context: android.content.Context, uri: android.net.Uri): Boolean =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching {
+                val alerts = container.alertRepo.all().map {
+                    com.adgent.trader.data.BackupAlert(
+                        symbol = it.symbol,
+                        type = it.type,
+                        threshold = it.threshold,
+                        repeatable = it.repeatable,
+                        note = it.note,
+                        enabled = it.enabled,
+                        createdAt = it.createdAt,
+                    )
+                }
+                val data = com.adgent.trader.data.BackupData(
+                    exportedAt = System.currentTimeMillis(),
+                    watchlist = container.watchlistRepo.all().map { it.symbol },
+                    alerts = alerts,
+                )
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(com.adgent.trader.data.BackupCodec.encode(data).toByteArray(Charsets.UTF_8))
+                } ?: error("output non disponibile")
+            }.isSuccess
+        }
+
+    /** Ripristina da file JSON: sostituisce watchlist e avvisi. Ritorna (preferiti, avvisi). */
+    suspend fun importBackup(
+        context: android.content.Context,
+        uri: android.net.Uri,
+    ): Pair<Int, Int>? = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+        runCatching {
+            val text = context.contentResolver.openInputStream(uri)
+                ?.bufferedReader()?.use { it.readText() }
+                ?: error("input non disponibile")
+            val data = com.adgent.trader.data.BackupCodec.decode(text) ?: error("formato non valido")
+            container.alertRepo.replaceAll(
+                data.alerts.map { a ->
+                    com.adgent.trader.core.database.AlertRuleEntity(
+                        id = 0L,
+                        symbol = a.symbol,
+                        type = a.type,
+                        threshold = a.threshold,
+                        repeatable = a.repeatable,
+                        note = a.note,
+                        enabled = a.enabled,
+                        createdAt = a.createdAt,
+                        lastTriggeredAt = null,
+                    )
+                },
+            )
+            container.watchlistRepo.replaceAll(data.watchlist)
+            data.watchlist.size to data.alerts.size
+        }.getOrNull()
     }
 }
 
@@ -69,6 +128,38 @@ fun SettingsScreen(
     val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
     val current = settings ?: return
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+
+    // SAF: esporta/ripristina il backup dei dati (watchlist + avvisi).
+    val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                val ok = vm.exportBackup(context, it)
+                android.widget.Toast.makeText(
+                    context,
+                    if (ok) "Backup esportato" else "Esportazione non riuscita",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+    val importLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        uri?.let {
+            scope.launch {
+                val res = vm.importBackup(context, it)
+                android.widget.Toast.makeText(
+                    context,
+                    if (res != null) "Ripristinati ${res.first} preferiti e ${res.second} avvisi"
+                    else "File di backup non valido",
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
 
     Column(
         Modifier
@@ -173,6 +264,48 @@ fun SettingsScreen(
                             Text("Guida per il tuo telefono")
                         }
                     }
+                }
+            }
+        }
+
+        // ---------- Sicurezza ----------
+        SettingsSection("Sicurezza") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Blocco app", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "All'apertura richiede impronta, volto o PIN del telefono. " +
+                            "Protegge grafici e avvisi se il telefono è in mano ad altri.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = current.appLock, onCheckedChange = vm::setAppLock)
+            }
+        }
+
+        // ---------- Backup e ripristino ----------
+        SettingsSection("Backup e ripristino") {
+            Text(
+                "Esporta preferiti e avvisi in un file JSON da conservare o spostare " +
+                    "su un altro telefono. Il ripristino sostituisce i dati attuali " +
+                    "con quelli del file.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT)
+                        .format(java.util.Date())
+                    exportLauncher.launch("adgent-trader-backup-$stamp.json")
+                }) {
+                    Text("Esporta su file…")
+                }
+                OutlinedButton(onClick = {
+                    importLauncher.launch(arrayOf("application/json", "text/*"))
+                }) {
+                    Text("Ripristina da file…")
                 }
             }
         }
