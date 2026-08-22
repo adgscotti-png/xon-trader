@@ -1,6 +1,7 @@
 package com.adgent.trader.ui.coin
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -160,6 +161,9 @@ fun CoinDetailScreen(
                         else -> CandleChart(
                             klines = state.klines,
                             mode = state.chartMode,
+                            showMa = state.showMa,
+                            showEma = state.showEma,
+                            showBb = state.showBb,
                             livePrice = state.livePrice,
                             modifier = Modifier.fillMaxSize(),
                         )
@@ -168,6 +172,10 @@ fun CoinDetailScreen(
                 ChartControls(
                     mode = state.chartMode,
                     onMode = vm::setChartMode,
+                    showMa = state.showMa,
+                    showEma = state.showEma,
+                    showBb = state.showBb,
+                    onToggle = vm::toggleOverlay,
                 )
             }
         }
@@ -237,12 +245,20 @@ private fun TimeframeSelector(selected: Timeframe, onSelect: (Timeframe) -> Unit
 }
 
 @Composable
-private fun ChartControls(mode: ChartMode, onMode: (ChartMode) -> Unit) {
+private fun ChartControls(
+    mode: ChartMode,
+    onMode: (ChartMode) -> Unit,
+    showMa: Boolean,
+    showEma: Boolean,
+    showBb: Boolean,
+    onToggle: (CoinDetailViewModel.OverlayKind) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         ChartMode.entries.forEach { m ->
             TextButton(onClick = { onMode(m) }) {
@@ -253,6 +269,28 @@ private fun ChartControls(mode: ChartMode, onMode: (ChartMode) -> Unit) {
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+        Spacer(Modifier.width(6.dp))
+        listOf(
+            Triple("MA", showMa, CoinDetailViewModel.OverlayKind.MA),
+            Triple("EMA", showEma, CoinDetailViewModel.OverlayKind.EMA),
+            Triple("BB", showBb, CoinDetailViewModel.OverlayKind.BB),
+        ).forEach { (label, active, kind) ->
+            Text(
+                label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                color = if (active) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier
+                    .background(
+                        color = if (active) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        else androidx.compose.ui.graphics.Color.Transparent,
+                        shape = RoundedCornerShape(8.dp),
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                    .clickable { onToggle(kind) },
+            )
         }
     }
 }

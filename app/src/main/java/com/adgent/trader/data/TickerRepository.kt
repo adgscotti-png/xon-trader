@@ -188,10 +188,12 @@ class ChartRepository(
     private fun KlineEntity.toModel() = Kline(openTime, open, high, low, close, volume, closeTime)
 
     private fun maxAgeMs(tf: Timeframe): Long = when (tf) {
+        Timeframe.M1 -> 3L
         Timeframe.M15 -> 7L
         Timeframe.H1 -> 30L
         Timeframe.H4 -> 120L
         Timeframe.D1 -> 730L
         Timeframe.W1 -> 3_650L
+        Timeframe.MO -> 7_300L
     } * 86_400_000L
 }

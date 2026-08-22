@@ -64,6 +64,8 @@ fun CandleChart(
     modifier: Modifier = Modifier,
     mode: ChartMode = ChartMode.CANDLES,
     showMa: Boolean = true,
+    showEma: Boolean = false,
+    showBb: Boolean = false,
     showVolume: Boolean = true,
     livePrice: Double? = null,
     upColor: Color = MarketGreen,
@@ -76,6 +78,16 @@ fun CandleChart(
     val crosshairIdx = remember { mutableIntStateOf(-1) }
     val textMeasurer = rememberTextMeasurer()
 
+    val ma = remember(klines, showMa, showEma) {
+        when {
+            showEma -> Indicators.emaOverlays(klines)
+            else -> if (showMa) Indicators.maOverlays(klines) else null
+        }
+    }
+    val bb = remember(klines, showBb) {
+        if (showBb) Indicators.bollinger(klines.map { it.close }) else null
+    }
+
     // Adatta la finestra alla serie disponibile (nuovi dati / nuovo timeframe).
     if (klines.isNotEmpty()) {
         val n = klines.size.toFloat()
@@ -87,8 +99,6 @@ fun CandleChart(
         window.count = window.count.coerceIn(8f, min(n, 500f))
         if (crosshairIdx.intValue >= klines.size) crosshairIdx.intValue = -1
     }
-
-    val ma = remember(klines, showMa) { if (showMa) Indicators.maOverlays(klines) else null }
 
     val maColors = mapOf(
         7 to Color(0xFFF0B90B),
@@ -142,9 +152,9 @@ fun CandleChart(
             drawTradingView(
                 klines = klines,
                 ma = ma,
+                bb = bb,
                 maColors = maColors,
                 mode = mode,
-                showMa = showMa,
                 showVolume = showVolume,
                 window = window,
                 livePrice = livePrice,
@@ -165,9 +175,9 @@ fun CandleChart(
 private fun DrawScope.drawTradingView(
     klines: List<Kline>,
     ma: Map<Int, List<Double?>>?,
+    bb: Triple<List<Double?>, List<Double?>, List<Double?>>?,
     maColors: Map<Int, Color>,
     mode: ChartMode,
-    showMa: Boolean,
     showVolume: Boolean,
     window: ChartWindow,
     livePrice: Double?,
@@ -198,7 +208,7 @@ private fun DrawScope.drawTradingView(
         lo = min(lo, visible.minOf { it.close })
         hi = max(hi, visible.maxOf { it.close })
     }
-    if (showMa && ma != null) {
+    if (ma != null) {
         ma.values.forEach { series ->
             (firstIdx..lastIdx).forEach { i ->
                 series.getOrNull(i)?.let { v ->
@@ -302,8 +312,49 @@ private fun DrawScope.drawTradingView(
         }
     }
 
+    // --- bande Bollinger (riempimento + media centrale) ---
+    if (bb != null) {
+        val (upper, mid, lower) = bb
+        fun bandPath(): Pair<Path, Path> {
+            val top = Path(); val bottom = Path()
+            var started = false
+            (firstIdx..lastIdx).forEach { i ->
+                val u = upper.getOrNull(i) ?: return@forEach
+                val l = lower.getOrNull(i)
+                    ?: return@forEach
+                if (!started) {
+                    top.moveTo(x(i), y(u)); bottom.moveTo(x(i), y(l)); started = true
+                } else {
+                    top.lineTo(x(i), y(u)); bottom.lineTo(x(i), y(l))
+                }
+            }
+            return top to bottom
+        }
+        val (topPath, bottomPath) = bandPath()
+        val band = Path().apply {
+            addPath(topPath)
+            // percorre la banda inferiore al contrario per chiudere l'area
+            val pts = (firstIdx..lastIdx).mapNotNull { i ->
+                lower.getOrNull(i)?.let { x(i) to it }
+            }.asReversed()
+            pts.forEach { (px, v) -> lineTo(px, y(v)) }
+            close()
+        }
+        drawPath(band, upColor.copy(alpha = 0.08f))
+        drawPath(topPath, labelColor.copy(alpha = 0.7f), style = Stroke(width = 1.2f))
+        drawPath(bottomPath, labelColor.copy(alpha = 0.7f), style = Stroke(width = 1.2f))
+        val midPath = Path()
+        var mStarted = false
+        (firstIdx..lastIdx).forEach { i ->
+            val m = mid.getOrNull(i) ?: return@forEach
+            val p = Offset(x(i), y(m))
+            if (!mStarted) { midPath.moveTo(p.x, p.y); mStarted = true } else midPath.lineTo(p.x, p.y)
+        }
+        drawPath(midPath, Color(0xFFF0B90B).copy(alpha = 0.9f), style = Stroke(width = 1.2f))
+    }
+
     // --- medie mobili ---
-    if (showMa && ma != null) {
+    if (ma != null) {
         ma.forEach { (period, series) ->
             val c = maColors[period] ?: Color.Gray
             val p = Path()

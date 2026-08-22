@@ -16,6 +16,9 @@ data class CoinDetailUiState(
     val klines: List<Kline> = emptyList(),
     val timeframe: Timeframe = Timeframe.DEFAULT,
     val chartMode: ChartMode = ChartMode.CANDLES,
+    val showMa: Boolean = true,
+    val showEma: Boolean = false,
+    val showBb: Boolean = false,
     val livePrice: Double? = null,
     /** Statistiche 24h dal tick live (fallback cache via refreshTickers del mercati). */
     val changePercent24h: Double? = null,
@@ -72,6 +75,19 @@ class CoinDetailViewModel(
     }
 
     fun setChartMode(mode: ChartMode) = _state.update { it.copy(chartMode = mode) }
+
+    /** Toggle degli overlay del grafico (mutuamente esclusivi MA/EMA). */
+    fun toggleOverlay(kind: OverlayKind) {
+        _state.update { s ->
+            when (kind) {
+                OverlayKind.MA -> s.copy(showMa = !s.showMa, showEma = if (!s.showMa) false else s.showEma)
+                OverlayKind.EMA -> s.copy(showEma = !s.showEma, showMa = if (!s.showEma) false else s.showMa)
+                OverlayKind.BB -> s.copy(showBb = !s.showBb)
+            }
+        }
+    }
+
+    enum class OverlayKind { MA, EMA, BB }
 
     fun retry() = loadTimeframe(_state.value.timeframe)
 
