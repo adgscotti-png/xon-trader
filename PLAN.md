@@ -1,7 +1,7 @@
 # ADGENT TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: F4 widget home screen (Glance 2×1 + 4×2, worker 15min) — F1/F2/F3 committate, build verde`
+`WORKING-ON: F6 beta pubblica — release firmata 0.2.0-beta1 (R8+keystore), changelog; manca solo repo GitHub remota per Releases (serve Andrea). F1-F5 complete e committate`
 
 ---
 

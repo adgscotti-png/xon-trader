@@ -6,6 +6,17 @@ plugins {
     alias(libs.plugins.ksp)
 }
 
+// Firma release: legge keystore/release.properties (fuori dal git, vedi .gitignore).
+// Se il file non c'è, assembleRelease produce un APK unsigned.
+// NB: niente java.util.Properties qui — nel DSL "java" è un accessor e va in conflitto.
+val releaseProps: Map<String, String> = runCatching {
+    val f = rootProject.file("keystore/release.properties")
+    if (!f.exists()) emptyMap()
+    else f.readLines()
+        .filter { it.contains('=') && !it.trimStart().startsWith('#') }
+        .associate { it.substringBefore('=').trim() to it.substringAfter('=', "").trim() }
+}.getOrDefault(emptyMap())
+
 android {
     namespace = "com.adgent.trader"
     compileSdk = 35
@@ -14,8 +25,19 @@ android {
         applicationId = "com.adgent.trader"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0-alpha1"
+        versionCode = 2
+        versionName = "0.2.0-beta1"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (releaseProps.isNotEmpty()) {
+                storeFile = file(releaseProps.getValue("storeFile"))
+                storePassword = releaseProps.getValue("storePassword")
+                keyAlias = releaseProps.getValue("keyAlias")
+                keyPassword = releaseProps.getValue("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -26,6 +48,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            if (releaseProps.isNotEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
     compileOptions {
