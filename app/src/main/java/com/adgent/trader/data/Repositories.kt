@@ -48,6 +48,7 @@ class AlertRepository(private val dao: AlertDao) {
     suspend fun byId(id: Long): AlertRuleEntity? = dao.byId(id)
     suspend fun save(rule: AlertRuleEntity): Long = dao.upsert(rule)
     suspend fun setEnabled(id: Long, enabled: Boolean) = dao.setEnabled(id, enabled)
+    suspend fun markTriggered(id: Long, at: Long, enabled: Boolean) = dao.markTriggered(id, at, enabled)
     suspend fun delete(id: Long) = dao.delete(id)
 }
 

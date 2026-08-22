@@ -6,6 +6,7 @@ import com.adgent.trader.core.database.TraderDatabase
 import com.adgent.trader.core.network.BinanceApi
 import com.adgent.trader.core.network.BinanceWebSocket
 import com.adgent.trader.data.AlertRepository
+import com.adgent.trader.data.DataMode
 import com.adgent.trader.data.ChartRepository
 import com.adgent.trader.data.SettingsRepository
 import com.adgent.trader.data.TickerRepository
@@ -13,6 +14,8 @@ import com.adgent.trader.data.WatchlistRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
@@ -58,6 +61,16 @@ class TraderApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // Canali notifica + feed realtime se la modalità dati lo prevede.
+        com.adgent.trader.core.notifications.Notifications.ensureChannels(this)
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+            val mode = runCatching {
+                container.settingsRepo.settings.first().dataMode
+            }.getOrDefault(DataMode.REALTIME)
+            if (mode == DataMode.REALTIME) {
+                com.adgent.trader.core.service.PriceFeedController.start(this@TraderApp)
+            }
+        }
     }
 }
 

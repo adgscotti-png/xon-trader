@@ -52,6 +52,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- Azione rapida "Disattiva" dalle notifiche avviso -->
+        <receiver
+            android:name=".core.notifications.AlertActionReceiver"
+            android:exported="false" />
+
         <!-- Widget home screen (F4) -->
         <receiver
             android:name=".ui.widgets.TickerWidgetReceiver"

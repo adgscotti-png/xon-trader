@@ -1,0 +1,348 @@
+package com.adgent.trader.ui.alerts
+
+import android.content.Context
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.adgent.trader.AppContainer
+import com.adgent.trader.appContainer
+import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.database.AlertRuleEntity
+import com.adgent.trader.core.model.AlertType
+import com.adgent.trader.core.service.PriceFeedController
+import com.adgent.trader.data.DataMode
+import com.adgent.trader.ui.appViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+
+data class AlertEditUiState(
+    val ruleId: Long? = null,
+    val symbols: List<Pair<String, Double>> = emptyList(), // symbol → prezzo corrente
+    val query: String = "",
+    val symbol: String = "BTCUSDT",
+    val type: AlertType = AlertType.PRICE_ABOVE,
+    val threshold: String = "",
+    val repeatable: Boolean = false,
+    val note: String = "",
+    val saved: Boolean = false,
+) {
+    val thresholdValue: Double?
+        get() = threshold.replace(',', '.').toDoubleOrNull()
+
+    val canSave: Boolean
+        get() = thresholdValue != null && (thresholdValue ?: 0.0) > 0.0
+}
+
+/** Editor avviso: simbolo, tipo soglia, ripetizione e nota. Salva su Room. */
+class AlertEditViewModel(
+    private val container: AppContainer,
+    private val ruleId: Long?,
+    presetSymbol: String?,
+) : ViewModel() {
+
+    private val _state = MutableStateFlow(
+        AlertEditUiState(ruleId = ruleId, symbol = presetSymbol ?: "BTCUSDT")
+    )
+    val state = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            // Lista simboli con prezzo per il picker (cache mercati).
+            val cached = container.tickerRepo.observeCached(limit = 300).first()
+                .map { it.symbol to it.price }
+            _state.update { it.copy(symbols = cached.sortedBy { p -> p.first }) }
+
+            if (ruleId != null) {
+                container.alertRepo.byId(ruleId)?.let { r ->
+                    _state.update {
+                        it.copy(
+                            symbol = r.symbol,
+                            type = AlertType.entries.firstOrNull { t -> t.name == r.type }
+                                ?: AlertType.PRICE_ABOVE,
+                            threshold = r.threshold.toBigDecimal().stripTrailingZeros().toPlainString(),
+                            repeatable = r.repeatable,
+                            note = r.note,
+                        )
+                    }
+                }
+            } else if (presetSymbol == null) {
+                // Preimposta il simbolo con volume più alto (tipicamente BTCUSDT).
+                cached.maxByOrNull { it.second * 0 } // ordine cache già per volume
+                _state.update { s -> s.copy(symbol = cached.firstOrNull()?.first ?: "BTCUSDT") }
+            }
+        }
+    }
+
+    fun onQueryChange(q: String) = _state.update { it.copy(query = q) }
+    fun onSymbolPick(symbol: String) = _state.update { it.copy(symbol = symbol, query = "") }
+    fun onType(t: AlertType) = _state.update { it.copy(type = t) }
+    fun onThreshold(v: String) =
+        _state.update { it.copy(threshold = v.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(15)) }
+    fun onRepeatable(b: Boolean) = _state.update { it.copy(repeatable = b) }
+    fun onNote(n: String) = _state.update { it.copy(note = n.take(120)) }
+
+    /** Salva la regola; se realtime attivo garantisce che il servizio giri. */
+    fun save(context: Context) {
+        val s = state.value
+        val threshold = s.thresholdValue ?: return
+        viewModelScope.launch {
+            val existing = s.ruleId?.let { runCatching { container.alertRepo.byId(it) }.getOrNull() }
+            val rule = AlertRuleEntity(
+                id = s.ruleId ?: 0L,
+                symbol = s.symbol,
+                type = s.type.name,
+                threshold = threshold,
+                repeatable = s.repeatable,
+                note = s.note.trim(),
+                enabled = true,
+                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                lastTriggeredAt = existing?.lastTriggeredAt,
+            )
+            container.alertRepo.save(rule)
+            if (container.settingsRepo.settings.first().dataMode == DataMode.REALTIME) {
+                PriceFeedController.start(context)
+            }
+            _state.update { it.copy(saved = true) }
+        }
+    }
+
+    fun delete(context: Context) {
+        val id = state.value.ruleId ?: return
+        viewModelScope.launch {
+            container.alertRepo.delete(id)
+            _state.update { it.copy(saved = true) }
+        }
+    }
+}
+
+/**
+ * Editor avviso: picker simbolo con ricerca live, tipo soglia, ripetibile, nota.
+ * Ogni sezione spiega cosa succede quando l'avviso scatta.
+ */
+@Composable
+fun AlertEditScreen(
+    ruleId: Long?,
+    presetSymbol: String?,
+    onClose: () -> Unit,
+    vm: AlertEditViewModel = appViewModel(key = "alert-edit-${ruleId ?: 0}-$presetSymbol") {
+        AlertEditViewModel(it, ruleId, presetSymbol)
+    },
+) {
+    val context = LocalContext.current
+    val state by vm.state.collectAsStateWithLifecycle()
+    LaunchedEffect(state.saved) { if (state.saved) onClose() }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Chiudi editor")
+            }
+            Text(
+                if (ruleId == null) "Nuovo avviso" else "Modifica avviso",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        // ---------- Simbolo ----------
+        SectionTitle("Strumento", "La coppia crypto da monitorare")
+        OutlinedTextField(
+            value = state.query,
+            onValueChange = vm::onQueryChange,
+            placeholder = { Text("Cerca simbolo (es. BTC)") },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        )
+        val results = if (state.query.isBlank()) emptyList()
+        else state.symbols.filter { it.first.contains(state.query, ignoreCase = true) }.take(6)
+        results.forEach { (sym, price) ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { vm.onSymbolPick(sym) }
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+            ) {
+                Text(sym.removeSuffix("USDT"), fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Text(
+                    "$" + Format.price(price),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Surface(
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+            shape = RoundedCornerShape(10.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 6.dp),
+        ) {
+            Text(
+                "Strumento selezionato: ${state.symbol.removeSuffix("USDT")}/USDT",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+        }
+
+        // ---------- Tipo ----------
+        SectionTitle("Quando avvisarmi", "La condizione che fa scattare la notifica")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+            listOf(AlertType.PRICE_ABOVE, AlertType.PRICE_BELOW).forEach { t ->
+                FilterChip(
+                    selected = state.type == t,
+                    onClick = { vm.onType(t) },
+                    label = { Text(t.label) },
+                )
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+
+        // ---------- Soglia ----------
+        SectionTitle(
+            "Prezzo soglia",
+            when (state.type) {
+                AlertType.PRICE_ABOVE -> "Ricevi la notifica se il prezzo sale sopra questo valore"
+                AlertType.PRICE_BELOW -> "Ricevi la notifica se il prezzo scende sotto questo valore"
+                else -> ""
+            },
+        )
+        OutlinedTextField(
+            value = state.threshold,
+            onValueChange = vm::onThreshold,
+            placeholder = { Text("Es. ${exampleThreshold(state.symbol)}") },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        )
+
+        // ---------- Ripetibile + nota ----------
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Avviso ripetibile", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Spento: una sola notifica, poi si disattiva da solo.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Switch(checked = state.repeatable, onCheckedChange = vm::onRepeatable)
+        }
+        OutlinedTextField(
+            value = state.note,
+            onValueChange = vm::onNote,
+            placeholder = { Text("Nota facoltativa, es. \"obiettivo take profit\"") },
+            singleLine = true,
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp),
+        )
+
+        // ---------- Azioni ----------
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Button(
+                onClick = { vm.save(context) },
+                enabled = state.canSave,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.White),
+                modifier = Modifier.weight(1f),
+            ) {
+                Text("Salva avviso")
+            }
+            if (ruleId != null) {
+                TextButton(onClick = { vm.delete(context) }, modifier = Modifier.weight(1f)) {
+                    Text("Elimina", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+private fun exampleThreshold(symbol: String): String = when (symbol) {
+    "BTCUSDT" -> "100000"
+    "ETHUSDT" -> "3500"
+    "SOLUSDT" -> "200"
+    else -> "50"
+}
+
+@Composable
+private fun SectionTitle(title: String, subtitle: String) {
+    Column(Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        if (subtitle.isNotBlank()) {
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}

@@ -1,25 +1,226 @@
 package com.adgent.trader.ui.alerts
 
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.NotificationsActive
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
+import com.adgent.trader.AppContainer
+import com.adgent.trader.appContainer
+import com.adgent.trader.core.database.AlertRuleEntity
+import com.adgent.trader.core.notifications.Notifications
+import com.adgent.trader.data.DataMode
+import com.adgent.trader.ui.appViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
-/** Segnaposto F3 — sostituita dalla gestione avvisi completa. */
+data class AlertsUiState(
+    val rules: List<AlertRuleEntity> = emptyList(),
+    val realtime: Boolean = true,
+)
+
+class AlertsViewModel(container: AppContainer) : ViewModel() {
+
+    private val container = container
+
+    val state: StateFlow<AlertsUiState> = combine(
+        container.alertRepo.observeAll(),
+        container.settingsRepo.settings.map { it.dataMode },
+    ) { rules, mode ->
+        AlertsUiState(rules, mode == DataMode.REALTIME)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AlertsUiState())
+
+    fun setEnabled(rule: AlertRuleEntity, enabled: Boolean) {
+        viewModelScope.launch { container.alertRepo.setEnabled(rule.id, enabled) }
+    }
+
+    fun delete(id: Long) {
+        viewModelScope.launch { container.alertRepo.delete(id) }
+    }
+}
+
+/**
+ * Schermata Avvisi: lista regole con switch on/off, cancellazione e CTA editor.
+ * Sottotitolo che spiega la modalità attiva (realtime ~1s vs risparmio ≤15min).
+ */
 @Composable
-fun AlertsScreen(onOpenCoin: (String) -> Unit, onEditRule: (Long?) -> Unit) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Text("Avvisi — in arrivo nella fase F3")
+fun AlertsScreen(
+    onOpenCoin: (String) -> Unit,
+    onEditRule: (Long?) -> Unit,
+    vm: AlertsViewModel = appViewModel { AlertsViewModel(it) },
+) {
+    val state by vm.state.collectAsStateWithLifecycle()
+
+    Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "Avvisi",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+            )
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    if (state.realtime) "Realtime · notifica in ~1 secondo"
+                    else "Risparmio · controllo ogni 15 minuti",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        if (state.rules.isEmpty()) {
+            EmptyAlerts(onCreate = { onEditRule(null) })
+        } else {
+            LazyColumn(Modifier.fillMaxSize()) {
+                items(state.rules, key = { it.id }) { rule ->
+                    AlertRow(
+                        rule = rule,
+                        onToggle = { vm.setEnabled(rule, !rule.enabled) },
+                        onDelete = { vm.delete(rule.id) },
+                        onOpenCoin = { onOpenCoin(rule.symbol) },
+                        onEdit = { onEditRule(rule.id) },
+                    )
+                }
+                item { Spacer(Modifier.height(96.dp)) }
+            }
+        }
     }
 }
 
 @Composable
-fun AlertEditScreen(ruleId: Long?, presetSymbol: String?, onClose: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-        Text("Editor avvisi — in arrivo nella fase F3")
+private fun AlertRow(
+    rule: AlertRuleEntity,
+    onToggle: () -> Unit,
+    onDelete: () -> Unit,
+    onOpenCoin: () -> Unit,
+    onEdit: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 5.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
+        ) {
+            Icon(
+                Icons.Outlined.NotificationsActive,
+                contentDescription = null,
+                tint = if (rule.enabled) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.height(22.dp),
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    Notifications.describe(rule),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 2,
+                )
+                rule.note.takeIf { it.isNotBlank() }?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Row {
+                    TextButton(onClick = onOpenCoin, contentPadding = PaddingValues(0.dp)) {
+                        Text("Apri grafico", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) {
+                        Text("Modifica", style = MaterialTheme.typography.labelMedium)
+                    }
+                }
+            }
+            Switch(checked = rule.enabled, onCheckedChange = { onToggle() })
+            IconButton(onClick = onDelete) {
+                Icon(
+                    Icons.Rounded.Delete,
+                    contentDescription = "Elimina avviso",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyAlerts(onCreate: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Icon(
+            Icons.Outlined.NotificationsActive,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.height(44.dp),
+        )
+        Spacer(Modifier.height(12.dp))
+        Text("Nessun avviso", style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Ti avvisiamo quando un prezzo supera la soglia che imposti.\nFunziona anche a app chiusa.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(16.dp))
+        ExtendedFloatingActionButton(
+            onClick = onCreate,
+            icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
+            text = { Text("Crea il primo avviso") },
+        )
     }
 }
