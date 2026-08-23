@@ -1,5 +1,6 @@
 package com.adgent.trader.core.common
 
+import kotlinx.serialization.Serializable
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ln
@@ -11,6 +12,7 @@ import kotlin.math.roundToLong
  * Price display style selectable per widget: from the adaptive default to the
  * compact variants meant for large text with minimal information.
  */
+@Serializable
 enum class NumberFormatMode(val label: String, val example: String) {
     AUTO("Auto", "97,400.12"),
     FULL("Full", "97,400.12"),

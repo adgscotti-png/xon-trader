@@ -299,43 +299,46 @@ class WatchlistWidget : GlanceAppWidget() {
                     if (rows.isEmpty()) {
                         Text("Open ADGENT Trader to load data", style = dimStyle(11))
                     } else {
-                        rows.forEachIndexed { i, r ->
-                            if (i > 0) Spacer(GlanceModifier.height(3.dp))
-                            Row(
-                                modifier = GlanceModifier
-                                    .fillMaxWidth()
-                                    .background(ColorProvider(CardColor))
-                                    .cornerRadius(10.dp)
-                                    .clickable(openCoinAction(r.symbol))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp),
-                                verticalAlignment = Alignment.Vertical.CenterVertically,
-                            ) {
-                                Text(
-                                    r.base,
-                                    style = TextStyle(
-                                        color = ColorProvider(TextMain),
-                                        fontSize = cfg.textSizeSp.sp,
-                                        fontWeight = FontWeight.Medium,
-                                    ),
-                                    maxLines = 1,
-                                )
-                                Spacer(GlanceModifier.width(8.dp))
-                                Text(
-                                    "$" + Format.price(r.price, cfg.numberFormat),
-                                    style = TextStyle(color = ColorProvider(TextDim), fontSize = cfg.textSizeSp.sp),
-                                    maxLines = 1,
-                                )
-                                Spacer(GlanceModifier.defaultWeight())
-                                if (cfg.showChange) {
+                        // Column annidata: Glance limita a 10 figli per contenitore,
+                        // con le righe qui dentro non si troncano mai.
+                        Column {
+                            rows.forEach { r ->
+                                Row(
+                                    modifier = GlanceModifier
+                                        .fillMaxWidth()
+                                        .background(ColorProvider(CardColor))
+                                        .cornerRadius(10.dp)
+                                        .clickable(openCoinAction(r.symbol))
+                                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                                    verticalAlignment = Alignment.Vertical.CenterVertically,
+                                ) {
                                     Text(
-                                        Format.percent(r.changePercent24h),
+                                        r.base,
                                         style = TextStyle(
-                                            color = changeColor(r.changePercent24h),
+                                            color = ColorProvider(TextMain),
                                             fontSize = cfg.textSizeSp.sp,
-                                            fontWeight = FontWeight.Bold,
+                                            fontWeight = FontWeight.Medium,
                                         ),
                                         maxLines = 1,
                                     )
+                                    Spacer(GlanceModifier.width(8.dp))
+                                    Text(
+                                        "$" + Format.price(r.price, cfg.numberFormat),
+                                        style = TextStyle(color = ColorProvider(TextDim), fontSize = cfg.textSizeSp.sp),
+                                        maxLines = 1,
+                                    )
+                                    Spacer(GlanceModifier.defaultWeight())
+                                    if (cfg.showChange) {
+                                        Text(
+                                            Format.percent(r.changePercent24h),
+                                            style = TextStyle(
+                                                color = changeColor(r.changePercent24h),
+                                                fontSize = cfg.textSizeSp.sp,
+                                                fontWeight = FontWeight.Bold,
+                                            ),
+                                            maxLines = 1,
+                                        )
+                                    }
                                 }
                             }
                         }

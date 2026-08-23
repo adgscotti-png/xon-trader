@@ -298,3 +298,61 @@ long-press preferito ✓ toggle stella ricerca ✓. Script: `scripts/emu-verify-
 prima riga ≈ (276,506); nav bar: alerts (540,2330), settings (900,2330).
 
 **Release 0.2.3** (versionCode 5), stesso cert (upgrade in-place).
+
+## 11. Ondata fix widget CRITICO + grafico (23/08/2026) — release 0.2.4
+
+### 1. Root cause del "widget che sovrascrive i precedenti" (CRITICO)
+**Sintomo Andrea**: l'ultimo widget creato funziona ma trasforma i precedenti —
+selezioni BTC su uno e anche quello che mostrava ETH diventa BTC; addirittura
+anche il widget watchlist (favoriti) viene "sovrascritto".
+
+**Diagnosi (deterministica, emulatore + bytecode)**:
+1. `WidgetConfigStore.save()` avvolge TUTTO in `runCatching` → errori silenziosi.
+2. `WidgetConfig` NON era `@Serializable` → `json.encodeToString(config)` chiamava
+   il fallback runtime `SerializersKt.noCompiledSerializer()` → lanciava
+   `SerializationException` a runtime, **inghiottita dal runCatching**.
+3. Risultato: **nessuna configurazione è mai stata salvata**. Ogni widget ticker
+   era in modalità Automatica → tutti mostravano la STESSA moneta
+   (`rows.firstOrNull()` = primo preferito / top volume). Da qui la percezione
+   "creo BTC → tutti diventano BTC", incluse le watchlist (stessa sorgente dati).
+4. Nota: F7 era stata verificata "per review del diff", NON E2E → il bug è
+   passato inosservato. La lezione: `runCatching` + serializzazione = verificare
+   SEMPRE la persistenza reale.
+
+**Fix**:
+- `@Serializable` su `WidgetConfig` e su `NumberFormatMode` (Enum esplicito).
+- Verificato: `WidgetConfig$$serializer.class` generato; prefs ora contengono
+  `ticker_8={symbol:ETHUSDT}`, `watchlist_9={rows:4}`, `ticker_10={symbol:BTCUSDT}`
+  in parallelo (chiavi distinte per istanza).
+- **Repro on-device (activity DEBUG-only, `app/src/debug/`)** con AppWidgetHost:
+  3 widget reali (ticker ETH → watchlist → ticker BTC) → dopo il passo 3 il
+  primo mostra ancora ETH. Isolamento per-istanza CONFERMATO sul device.
+
+### 2. Fix secondario: truncation watchlist (Glance 10 figli)
+Logcat rivelava `GlanceAppWidget: Truncated Column container from 13 to 10
+elements` — Glance limita a 10 figli per contenitore. Con righe >~4 il widget
+watchlist perdeva righe in silenzio (peggio una volta che le config funzionano).
+Fix: righe annidate in una `Column` interna → mai più troncature.
+
+### 3. Grafico: etichette tempo sotto le candele
+Prima: stesso stile 19sp delle etichette prezzo → troppo grandi, si
+sovrapponevano ai bordi (clamp). Ora: stile dedicato 12sp, centrate nella fascia
+asse, guardia anti-sovrapposizione (`lastTimeLabelEnd` salta la label se finisce
+sulla precedente).
+
+### 4. Grafico: header scheda completa
+Aggiunto **orologio live** (`HH:mm:ss · dd/MM/yy`, aggiornato ogni secondo)
+sotto il badge variazione, accanto al prezzo → scheda grafico con ultimo prezzo,
+variazione e ora corrente.
+
+### 5. Infra: debug keystore persistente
+`build.sh` non montava `~/.android` → AGP rigenerava il debug keystore a ogni
+build → ogni APK debug aveva firma diversa → `adb install -r` falliva
+(INSTALL_FAILED_UPDATE_INCOMPATIBLE). Fix: volume `android-home` per
+`/root/.android`.
+
+### Verifica (23/08, 0.2.4)
+- Repro on-device: prefs con 3 chiavi distinte + widget A=ETH dopo creazione C=BTC.
+- Grafico: header con clock + asse tempi piccolo e leggibile. Screenshot in
+  `shots/repro/`.
+- **Release 0.2.4** (versionCode 6), stesso cert (upgrade in-place).

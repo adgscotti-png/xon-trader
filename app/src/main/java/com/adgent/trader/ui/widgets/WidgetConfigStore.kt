@@ -3,6 +3,7 @@ package com.adgent.trader.ui.widgets
 import android.content.Context
 import androidx.compose.runtime.Composable
 import com.adgent.trader.core.common.NumberFormatMode
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
@@ -19,6 +20,7 @@ enum class WidgetKind { TICKER, WATCHLIST }
  * - [showChange] / [showTimestamp]: elementi opzionali per il testo essenziale.
  * - [rows]: righe visibili nel widget watchlist.
  */
+@Serializable
 data class WidgetConfig(
     val symbol: String = "",
     val textSizeSp: Int = 17,

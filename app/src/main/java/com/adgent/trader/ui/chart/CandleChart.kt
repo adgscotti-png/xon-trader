@@ -512,22 +512,29 @@ private fun DrawScope.drawTradingView(
         gridV += step
     }
 
-    // --- griglia verticale + etichette tempo (spaziate in base alla larghezza) ---
+    // --- griglia verticale + etichette tempo (carattere ridotto, mai sovrapposte) ---
+    val timeStyle = TextStyle(fontSize = 12.sp, color = labelColor.copy(alpha = 0.95f))
     var labelEvery = max(1, (window.count / 5).roundToInt())
     val timeFmt = DateTimeFormatter.ofPattern(if (window.count <= 150) "dd/MM HH:mm" else "dd/MM/yy")
         .withZone(ZoneId.systemDefault())
     val sampleTxt = timeFmt.format(Instant.ofEpochMilli(klines[firstIdx].openTime))
-    val sampleW = textMeasurer.measure(sampleTxt, labelStyle).size.width
-    labelEvery = max(labelEvery, ceil(sampleW * 1.4f / slot).toInt())
+    val sampleW = textMeasurer.measure(sampleTxt, timeStyle).size.width
+    labelEvery = max(labelEvery, ceil(sampleW * 1.5f / slot).toInt())
+    val timeLabelH = textMeasurer.measure(sampleTxt, timeStyle).size.height
+    val timeY = h - layout.axisLabelHeight + (layout.axisLabelHeight - timeLabelH) / 2f
+    var lastTimeLabelEnd = -Float.MAX_VALUE
 
     (firstIdx..lastIdx).forEach { i ->
         if ((i - firstIdx) % labelEvery != 0) return@forEach
         val gx = x(i)
         drawLine(gridColor, Offset(gx, layout.chartTop), Offset(gx, layout.chartBottom), strokeWidth = 1f)
         val txt = timeFmt.format(Instant.ofEpochMilli(klines[i].openTime))
-        val lbl = textMeasurer.measure(txt, labelStyle)
+        val lbl = textMeasurer.measure(txt, timeStyle)
         val lx = (gx - lbl.size.width / 2f).coerceIn(4f, (layout.plotRight - lbl.size.width - 4f).coerceAtLeast(4f))
-        drawText(lbl, topLeft = Offset(lx, h - layout.axisLabelHeight + 7f))
+        // La clamp ai bordi può accostare le etichette: salta se finisce sul precedente.
+        if (lx < lastTimeLabelEnd) return@forEach
+        drawText(lbl, topLeft = Offset(lx, timeY))
+        lastTimeLabelEnd = lx + lbl.size.width
     }
 
     // --- volumi ---

@@ -53,6 +53,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adgent.trader.core.common.Format
 import com.adgent.trader.core.model.Timeframe
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.delay
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.chart.CandleChart
 import com.adgent.trader.ui.chart.ChartMode
@@ -360,10 +364,34 @@ private fun PriceHeader(state: CoinDetailUiState) {
             maxLines = 1,
             modifier = Modifier.weight(1f),
         )
-        state.changePercent24h?.let {
-            ChangeBadge(percent = it)
+        Column(horizontalAlignment = Alignment.End) {
+            state.changePercent24h?.let {
+                ChangeBadge(percent = it)
+            }
+            Spacer(Modifier.height(4.dp))
+            LiveClockText()
         }
     }
+}
+
+/** Orologio live (HH:mm:ss · data) accanto al prezzo nella scheda grafico. */
+@Composable
+private fun LiveClockText() {
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            delay(1000)
+            now = System.currentTimeMillis()
+        }
+    }
+    val zone = ZoneId.systemDefault()
+    val t = Instant.ofEpochMilli(now).atZone(zone)
+    Text(
+        text = t.format(DateTimeFormatter.ofPattern("HH:mm:ss")) +
+            " · " + t.format(DateTimeFormatter.ofPattern("dd/MM/yy")),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /**
