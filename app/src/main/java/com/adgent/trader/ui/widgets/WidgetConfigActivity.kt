@@ -142,7 +142,6 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
     val k = kind
     val cfg = config
-    val saveScope = androidx.compose.runtime.rememberCoroutineScope()
 
     if (k == null || cfg == null) {
         Column(
@@ -162,7 +161,7 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
-            "Configura widget",
+            "Configure widget",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Black,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp),
@@ -170,10 +169,10 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
         // ---------- Strumento / righe ----------
         SettingsBlock(
-            title = if (k == WidgetKind.TICKER) "Strumento mostrato" else "Contenuto",
+            title = if (k == WidgetKind.TICKER) "Shown instrument" else "Content",
             subtitle = if (k == WidgetKind.TICKER)
-                "Scegli una coppia fissa, oppure lascia Automatico: seguirà i tuoi preferiti."
-            else "Quante coppie preferite mostrare nel widget.",
+                "Pick a fixed pair, or leave Automatic: it follows your favorites."
+            else "How many favorite pairs to show in the widget.",
         ) {
             if (k == WidgetKind.WATCHLIST) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -181,7 +180,7 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
                         FilterChip(
                             selected = cfg.rows == n,
                             onClick = { config = cfg.copy(rows = n) },
-                            label = { Text("$n righe") },
+                            label = { Text("$n rows") },
                         )
                     }
                 }
@@ -196,8 +195,8 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
         // ---------- Dimensione testo ----------
         SettingsBlock(
-            title = "Dimensione del testo",
-            subtitle = "Testi più grandi = informazioni essenziali a colpo d'occhio.",
+            title = "Text size",
+            subtitle = "Bigger text = essential info at a glance.",
         ) {
             val presets = WidgetConfig.sizesFor(k)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -206,7 +205,7 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
                         selected = cfg.textSizeSp == sp,
                         onClick = { config = cfg.copy(textSizeSp = sp) },
                         label = {
-                            Text(listOf("Piccolo", "Medio", "Grande", "XL", "XXL")[i])
+                            Text(listOf("Small", "Medium", "Large", "XL", "XXL")[i])
                         },
                     )
                 }
@@ -215,8 +214,8 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
         // ---------- Formato numeri ----------
         SettingsBlock(
-            title = "Formato dei numeri",
-            subtitle = "Esempio con prezzo 97.400,12 — scegli quanto dettaglio vuoi vedere.",
+            title = "Number format",
+            subtitle = "Example with price 97,400.12 — pick how much detail you want.",
         ) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 NumberFormatMode.entries.chunked(2).forEach { pairModes ->
@@ -236,16 +235,16 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
         }
 
         // ---------- Elementi visibili ----------
-        SettingsBlock("Elementi visibili", "Riduci al minimo per avere solo il prezzo.") {
+        SettingsBlock("Visible elements", "Minimize to show just the price.") {
             ToggleRow(
-                label = "Variazione 24h",
-                description = "Percentuale verde/rossa accanto al prezzo.",
+                label = "24h change",
+                description = "Green/red percentage next to the price.",
                 checked = cfg.showChange,
                 onChecked = { config = cfg.copy(showChange = it) },
             )
             ToggleRow(
-                label = "Ora dell'aggiornamento",
-                description = "Ti dice a quando risalgono i prezzi mostrati.",
+                label = "Update time",
+                description = "Tells you how old the shown prices are.",
                 checked = cfg.showTimestamp,
                 onChecked = { config = cfg.copy(showTimestamp = it) },
             )
@@ -253,13 +252,13 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
         // ---------- Aggiornamento automatico ----------
         SettingsBlock(
-            title = "Aggiornamento automatico",
-            subtitle = "Con l'app chiusa Android consente almeno 15 minuti. Con l'app aperta i prezzi sono live in tempo reale.",
+            title = "Auto refresh",
+            subtitle = "With the app closed Android allows at least 15 minutes. With the app open prices are live in real time.",
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    15 to "15 min", 30 to "30 min", 60 to "1 ora",
-                    120 to "2 ore", 360 to "6 ore",
+                    15 to "15 min", 30 to "30 min", 60 to "1 hour",
+                    120 to "2 hours", 360 to "6 hours",
                 ).forEach { (min, label) ->
                     FilterChip(
                         selected = refreshMinutes == min,
@@ -280,7 +279,7 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
             OutlinedButton(
                 onClick = { onClose(false) },
                 modifier = Modifier.weight(1f),
-            ) { Text("Annulla") }
+            ) { Text("Cancel") }
 
             Button(
                 onClick = {
@@ -288,19 +287,23 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
                     WidgetConfigStore.save(ctx, k, appWidgetId, cfg)
                     WidgetConfigStore.setRefreshMinutes(ctx, refreshMinutes)
                     WidgetUpdateWorker.schedule(ctx, refreshMinutes)
-                    saveScope.launch {
+                    // Risultato ALLA LAUNCHER immediato: se arrivasse dopo (o mai,
+                    // per uno scope cancellato dal finish) il sistema scarterebbe
+                    // il widget piazzato e alla riaggiunta ripartirebbe dai default.
+                    onClose(true)
+                    // Ridisegno su scope dell'app: sopravvive alla chiusura activity.
+                    ctx.appContainer.appScope.launch {
                         runCatching {
                             when (k) {
                                 WidgetKind.TICKER -> TickerWidget().updateAll(ctx)
                                 WidgetKind.WATCHLIST -> WatchlistWidget().updateAll(ctx)
                             }
                         }
-                        onClose(true)
                     }
                 },
                 enabled = true,
                 modifier = Modifier.weight(1f),
-            ) { Text("Salva e applica") }
+            ) { Text("Save and apply") }
         }
         Spacer(Modifier.height(24.dp))
     }
@@ -326,12 +329,12 @@ private fun SymbolPicker(
             FilterChip(
                 selected = selected.isBlank(),
                 onClick = { onSelect(""); query = "" },
-                label = { Text("Automatico") },
+                label = { Text("Automatic") },
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                if (selected.isBlank()) "segui i tuoi preferiti"
-                else "fisso: ${selected.removeSuffix("USDT")}",
+                if (selected.isBlank()) "follows your favorites"
+                else "fixed: ${selected.removeSuffix("USDT")}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -340,7 +343,7 @@ private fun SymbolPicker(
         OutlinedTextField(
             value = query,
             onValueChange = { query = it.take(12) },
-            placeholder = { Text("Cerca simbolo (es. BTC)") },
+            placeholder = { Text("Search symbol (e.g. BTC)") },
             singleLine = true,
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.fillMaxWidth(),

@@ -33,19 +33,19 @@ object Notifications {
             listOf(
                 NotificationChannel(
                     CHANNEL_PRICES,
-                    "Avvisi prezzo",
+                    "Price alerts",
                     NotificationManager.IMPORTANCE_HIGH,
-                ).apply { description = "Notifiche quando un simbolo supera la soglia impostata" },
+                ).apply { description = "Notifications when a symbol crosses the set threshold" },
                 NotificationChannel(
                     CHANNEL_SERVICE,
-                    "Feed realtime",
+                    "Realtime feed",
                     NotificationManager.IMPORTANCE_MIN,
-                ).apply { description = "Notifica persistente del servizio dati in tempo reale" },
+                ).apply { description = "Persistent notification of the realtime data service" },
                 NotificationChannel(
                     CHANNEL_TEST,
                     "Test",
                     NotificationManager.IMPORTANCE_DEFAULT,
-                ).apply { description = "Notifiche di prova per verificare le impostazioni" },
+                ).apply { description = "Test notifications to check your settings" },
             )
         )
     }
@@ -105,7 +105,7 @@ object Notifications {
             .setColor(0xFF4C3DFF.toInt())
             .setContentIntent(openIntent)
             .setAutoCancel(true)
-            .addAction(0, "Disattiva", disableIntent)
+            .addAction(0, "Disable", disableIntent)
             .build()
 
         runCatching {
@@ -121,12 +121,12 @@ object Notifications {
         if (!canPost(context)) return false
         val notification = NotificationCompat.Builder(context, CHANNEL_TEST)
             .setSmallIcon(R.drawable.ic_stat_alert)
-            .setContentTitle("Notifica di prova")
-            .setContentText("Perfetto: gli avvisi prezzo arriveranno in questa forma.")
+            .setContentTitle("Test notification")
+            .setContentText("Perfect: price alerts will arrive in this form.")
             .setStyle(
                 NotificationCompat.BigTextStyle()
-                    .bigText("Perfetto: gli avvisi prezzo arriveranno in questa forma. " +
-                        "Se non la vedi, controlla le notifiche di sistema per ADGENT Trader."),
+                    .bigText("Perfect: price alerts will arrive in this form. " +
+                        "If you don't see it, check system notifications for ADGENT Trader."),
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setColor(0xFF4C3DFF.toInt())
@@ -152,12 +152,12 @@ object Notifications {
     fun describe(rule: AlertRuleEntity): String {
         val base = rule.symbol.removeSuffix("USDT")
         return when (rule.type) {
-            "PRICE_ABOVE" -> "$base sopra ${Format.price(rule.threshold)}"
-            "PRICE_BELOW" -> "$base sotto ${Format.price(rule.threshold)}"
-            "PERCENT_UP" -> "$base su ≥${Format.percent(rule.threshold)}"
-            "PERCENT_DOWN" -> "$base giù ≤−${Format.percent(rule.threshold)}"
+            "PRICE_ABOVE" -> "$base above ${Format.price(rule.threshold)}"
+            "PRICE_BELOW" -> "$base below ${Format.price(rule.threshold)}"
+            "PERCENT_UP" -> "$base up ≥${Format.percent(rule.threshold)}"
+            "PERCENT_DOWN" -> "$base down ≤−${Format.percent(rule.threshold)}"
             else -> rule.type
-        } + if (rule.repeatable) " · ripetibile" else ""
+        } + if (rule.repeatable) " · repeatable" else ""
     }
 
     /** Base degli ID notifica avviso: +ruleId. Pubblico per l'azione Disattiva. */

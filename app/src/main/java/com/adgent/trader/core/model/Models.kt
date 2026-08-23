@@ -60,8 +60,8 @@ enum class Timeframe(val binanceInterval: String, val label: String, val default
 
 /** Tipi di avviso prezzo supportati. */
 enum class AlertType(val label: String) {
-    PRICE_ABOVE("Sopra"),
-    PRICE_BELOW("Sotto"),
-    PERCENT_UP("Salita 24h ≥"),
-    PERCENT_DOWN("Discesa 24h ≤"),
+    PRICE_ABOVE("Above"),
+    PRICE_BELOW("Below"),
+    PERCENT_UP("24h up ≥"),
+    PERCENT_DOWN("24h down ≤"),
 }

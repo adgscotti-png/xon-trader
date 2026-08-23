@@ -131,6 +131,23 @@ fun SettingsScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // SAF: esporta/ripristina il backup dei dati (watchlist + avvisi).
+    // Il launch è protetto: su alcune ROM il picker documenti può mancare o
+    // fallire (ActivityNotFoundException/SecurityException) e senza catch
+    // l'app crasha proprio sul tap del bottone.
+    fun safeLaunch(launch: () -> Unit) {
+        try {
+            launch()
+        } catch (e: Exception) {
+            runCatching {
+                android.widget.Toast.makeText(
+                    context,
+                    "File picker unavailable: ${e.javaClass.simpleName}",
+                    android.widget.Toast.LENGTH_LONG,
+                ).show()
+            }
+        }
+    }
+
     val exportLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json"),
     ) { uri ->
@@ -139,7 +156,7 @@ fun SettingsScreen(
                 val ok = vm.exportBackup(context, it)
                 android.widget.Toast.makeText(
                     context,
-                    if (ok) "Backup esportato" else "Esportazione non riuscita",
+                    if (ok) "Backup exported" else "Export failed",
                     android.widget.Toast.LENGTH_SHORT,
                 ).show()
             }
@@ -153,8 +170,8 @@ fun SettingsScreen(
                 val res = vm.importBackup(context, it)
                 android.widget.Toast.makeText(
                     context,
-                    if (res != null) "Ripristinati ${res.first} preferiti e ${res.second} avvisi"
-                    else "File di backup non valido",
+                    if (res != null) "Restored ${res.first} favorites and ${res.second} alerts"
+                    else "Invalid backup file",
                     android.widget.Toast.LENGTH_SHORT,
                 ).show()
             }
@@ -168,25 +185,25 @@ fun SettingsScreen(
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
-            "Impostazioni",
+            "Settings",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Black,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
         )
 
         // ---------- Tema ----------
-        SettingsSection("Aspetto") {
+        SettingsSection("Appearance") {
             Text(
-                "Tema dell'app. \"Sistema\" segue l'impostazione del telefono.",
+                "App theme. \"System\" follows the phone setting.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    ThemeMode.SYSTEM to "Sistema",
-                    ThemeMode.LIGHT to "Chiaro",
-                    ThemeMode.DARK to "Scuro",
+                    ThemeMode.SYSTEM to "System",
+                    ThemeMode.LIGHT to "Light",
+                    ThemeMode.DARK to "Dark",
                 ).forEach { (mode, label) ->
                     FilterChip(
                         selected = current.themeMode == mode,
@@ -199,26 +216,26 @@ fun SettingsScreen(
 
         // ---------- Notifiche ----------
         val notifState = com.adgent.trader.ui.notifications.rememberNotifPermissionState()
-        SettingsSection("Notifiche") {
+        SettingsSection("Notifications") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (notifState.granted) "Permessi notifiche attivi"
-                        else "Permessi notifiche disattivati",
+                        if (notifState.granted) "Notification permission granted"
+                        else "Notification permission disabled",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         if (notifState.granted)
-                            "Gli avvisi prezzo possono arrivare anche a app chiusa."
+                            "Price alerts can arrive even with the app closed."
                         else
-                            "⚠ Senza il permesso gli avvisi NON arrivano, nemmeno in modalità Realtime.",
+                            "⚠ Without the permission alerts will NOT arrive, even in Realtime mode.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 if (!notifState.granted) {
-                    TextButton(onClick = notifState::ensure) { Text("Attiva") }
+                    TextButton(onClick = notifState::ensure) { Text("Enable") }
                 }
             }
             Spacer(Modifier.height(10.dp))
@@ -228,26 +245,26 @@ fun SettingsScreen(
                     android.widget.Toast.makeText(
                         context,
                         when {
-                            sent -> "Notifica inviata: controlla il pannello"
-                            else -> "Notifiche bloccate: tocca \"Attiva\" o apri le impostazioni"
+                            sent -> "Notification sent: check the panel"
+                            else -> "Notifications blocked: tap \"Enable\" or open system settings"
                         },
                         android.widget.Toast.LENGTH_LONG,
                     ).show()
                 }) {
-                    Text("Invia notifica di prova")
+                    Text("Send test notification")
                 }
                 OutlinedButton(onClick = { notifState.openSystemSettings() }) {
-                    Text("Impostazioni sistema")
+                    Text("System settings")
                 }
             }
         }
 
         // ---------- Modalità dati ----------
-        SettingsSection("Avvisi in tempo reale") {
+        SettingsSection("Realtime alerts") {
             Text(
-                "Realtime: notifica in ~1 secondo, con una piccola notifica persistente " +
-                    "che tiene attivo il collegamento. Risparmio: nessuna notifica persistente, " +
-                    "controllo ogni 15 minuti.",
+                "Realtime: notification in ~1 second, with a small persistent notification " +
+                    "keeping the connection alive. Battery saver: no persistent notification, " +
+                    "checks every 15 minutes.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -255,16 +272,16 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (current.dataMode == DataMode.REALTIME) "Realtime (consigliato)"
-                        else "Risparmio batteria",
+                        if (current.dataMode == DataMode.REALTIME) "Realtime (recommended)"
+                        else "Battery saver",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         if (current.dataMode == DataMode.REALTIME)
-                            "Avvisi quasi istantanei, anche a app chiusa."
+                            "Near-instant alerts, even with the app closed."
                         else
-                            "Avvisi garantiti entro 15 minuti, zero consumo in background.",
+                            "Alerts guaranteed within 15 minutes, zero background drain.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -288,14 +305,14 @@ fun SettingsScreen(
                 ) {
                     Column(Modifier.padding(12.dp)) {
                         Text(
-                            "Suggerimento per ${android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }}",
+                            "Tip for ${android.os.Build.MANUFACTURER.replaceFirstChar { it.uppercase() }}",
                             style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.SemiBold,
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Alcuni telefoni chiudono le app in background. Per garantire gli avvisi, " +
-                                "escludi ADGENT Trader dall'ottimizzazione batteria nelle impostazioni del telefono.",
+                            "Some phones kill background apps. To guarantee alerts, " +
+                                "exclude ADGENT Trader from battery optimization in phone settings.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -306,7 +323,7 @@ fun SettingsScreen(
                                 )
                             }
                         }) {
-                            Text("Guida per il tuo telefono")
+                            Text("Guide for your phone")
                         }
                     }
                 }
@@ -314,13 +331,13 @@ fun SettingsScreen(
         }
 
         // ---------- Sicurezza ----------
-        SettingsSection("Sicurezza") {
+        SettingsSection("Security") {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
-                    Text("Blocco app", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text("App lock", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        "All'apertura richiede impronta, volto o PIN del telefono. " +
-                            "Protegge grafici e avvisi se il telefono è in mano ad altri.",
+                        "Asks for fingerprint, face or phone PIN on launch. " +
+                            "Protects charts and alerts if someone else holds your phone.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -330,11 +347,11 @@ fun SettingsScreen(
         }
 
         // ---------- Backup e ripristino ----------
-        SettingsSection("Backup e ripristino") {
+        SettingsSection("Backup & restore") {
             Text(
-                "Esporta preferiti e avvisi in un file JSON da conservare o spostare " +
-                    "su un altro telefono. Il ripristino sostituisce i dati attuali " +
-                    "con quelli del file.",
+                "Export favorites and alerts to a JSON file to keep or move to " +
+                    "another phone. Restore replaces current data with the file " +
+                    "contents.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -343,24 +360,28 @@ fun SettingsScreen(
                 OutlinedButton(onClick = {
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT)
                         .format(java.util.Date())
-                    exportLauncher.launch("adgent-trader-backup-$stamp.json")
+                    safeLaunch { exportLauncher.launch("adgent-trader-backup-$stamp.json") }
                 }) {
-                    Text("Esporta su file…")
+                    Text("Export to file…")
                 }
                 OutlinedButton(onClick = {
-                    importLauncher.launch(arrayOf("application/json", "text/*"))
+                    // MIME concreti (niente wildcard): alcuni picker OEM vanno in
+                    // errore risolvendo "text/*" in EXTRA_MIME_TYPES.
+                    safeLaunch {
+                        importLauncher.launch(arrayOf("application/json", "text/plain", "application/octet-stream"))
+                    }
                 }) {
-                    Text("Ripristina da file…")
+                    Text("Restore from file…")
                 }
             }
         }
 
         // ---------- Info ----------
-        SettingsSection("Informazioni") {
+        SettingsSection("About") {
             Text(
-                "ADGENT Trader 0.1.0-alpha · dati di mercato Binance (endpoint pubblici, " +
-                    "nessuna registrazione richiesta). App informativa: non è consulenza " +
-                    "finanziaria. Software libero, licenza GPL-3.0.",
+                "ADGENT Trader · Binance market data (public endpoints, no signup " +
+                    "required). Informational app: this is not financial advice. " +
+                    "Free software, GPL-3.0 license.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

@@ -68,8 +68,8 @@ fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
             },
         )
         val info = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Sblocca ADGENT Trader")
-            .setSubtitle("Usa impronta, volto o PIN del dispositivo")
+            .setTitle("Unlock ADGENT Trader")
+            .setSubtitle("Use fingerprint, face or device PIN")
             .setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_WEAK
                     or BiometricManager.Authenticators.DEVICE_CREDENTIAL,
@@ -97,10 +97,10 @@ fun AppLockGate(enabled: Boolean, content: @Composable () -> Unit) {
             modifier = Modifier.size(56.dp),
         )
         Spacer(Modifier.height(16.dp))
-        Text("ADGENT Trader è bloccato", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text("ADGENT Trader is locked", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(4.dp))
         Text(
-            "Autentica con biometria o PIN per accedere ai tuoi dati.",
+            "Authenticate with biometrics or PIN to access your data.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

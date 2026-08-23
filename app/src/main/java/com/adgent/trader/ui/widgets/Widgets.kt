@@ -129,7 +129,7 @@ private fun openCoinAction(symbol: String) = actionStartActivity(
 private fun RefreshButton() {
     Image(
         provider = ImageProvider(R.drawable.ic_widget_refresh),
-        contentDescription = "Aggiorna adesso",
+        contentDescription = "Refresh now",
         modifier = GlanceModifier
             .width(22.dp)
             .height(22.dp)
@@ -151,8 +151,15 @@ class TickerWidget : GlanceAppWidget() {
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         val cfg = WidgetConfigStore.load(context, WidgetKind.TICKER, appWidgetId)
         val rows = loadWidgetRows(context, limit = 30)
+        // Lo strumento configurato vince SEMPRE: cache → download immediato →
+        // segnaposto. Mai un'altra moneta al posto di quella scelta.
         val row = cfg.symbol.takeIf { it.isNotBlank() }
-            ?.let { sym -> rows.firstOrNull { it.symbol == sym } ?: fetchRowFromCache(context, sym) }
+            ?.let { sym ->
+                rows.firstOrNull { it.symbol == sym }
+                    ?: fetchRowFromCache(context, sym)
+                    ?: fetchRowLive(context, sym)
+                    ?: WidgetRow(sym, sym.removeSuffix("USDT"), 0.0, 0.0)
+            }
             ?: rows.firstOrNull()
         val lastUpdate = WidgetConfigStore.lastUpdate(context)
         val timeLabel = timeLabel(lastUpdate)
@@ -168,7 +175,7 @@ class TickerWidget : GlanceAppWidget() {
                 ) {
                     if (row == null) {
                         Text(
-                            "Apri ADGENT Trader per caricare i dati",
+                            "Open ADGENT Trader to load data",
                             style = dimStyle(11),
                         )
                     } else {
@@ -205,7 +212,7 @@ class TickerWidget : GlanceAppWidget() {
                                             Text("· $timeLabel", style = dimStyle(10))
                                         }
                                     } else if (cfg.showTimestamp && timeLabel.isNotBlank()) {
-                                        Text("agg. $timeLabel", style = dimStyle(10))
+                                        Text("upd. $timeLabel", style = dimStyle(10))
                                     }
                                 }
                             }
@@ -242,6 +249,19 @@ private suspend fun fetchRowFromCache(context: Context, symbol: String): WidgetR
             ?.let { WidgetRow(it.symbol, it.symbol.removeSuffix("USDT"), it.price, it.changePercent24h) }
     }.getOrNull()
 
+/**
+ * Scarica subito il prezzo del simbolo configurato quando non è in cache
+ * (es. fuori dalla watchlist): il widget non deve mai mostrare un altro asset.
+ */
+private suspend fun fetchRowLive(context: Context, symbol: String): WidgetRow? =
+    runCatching {
+        val container = context.applicationContext.appContainer
+        container.tickerRepo.refreshTickers(listOf(symbol), force = true).getOrThrow()
+        container.tickerRepo.observeCached(limit = 500).first()
+            .firstOrNull { it.symbol == symbol }
+            ?.let { WidgetRow(it.symbol, it.symbol.removeSuffix("USDT"), it.price, it.changePercent24h) }
+    }.getOrNull()
+
 // ---------- Widget watchlist 4×2 ----------
 
 /** Lista preferiti (numero righe configurabile) con prezzo e variazione 24h. */
@@ -268,7 +288,7 @@ class WatchlistWidget : GlanceAppWidget() {
                     // Header: titolo + refresh immediato.
                     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
                         Text(
-                            "Preferiti",
+                            "Favorites",
                             style = TextStyle(color = ColorProvider(TextDim), fontSize = 10.sp),
                             modifier = GlanceModifier.defaultWeight(),
                         )
@@ -277,7 +297,7 @@ class WatchlistWidget : GlanceAppWidget() {
                     Spacer(GlanceModifier.height(4.dp))
 
                     if (rows.isEmpty()) {
-                        Text("Apri ADGENT Trader per caricare i dati", style = dimStyle(11))
+                        Text("Open ADGENT Trader to load data", style = dimStyle(11))
                     } else {
                         rows.forEachIndexed { i, r ->
                             if (i > 0) Spacer(GlanceModifier.height(3.dp))
@@ -323,7 +343,7 @@ class WatchlistWidget : GlanceAppWidget() {
 
                     if (cfg.showTimestamp && timeLabel.isNotBlank()) {
                         Spacer(GlanceModifier.height(3.dp))
-                        Text("Aggiornato alle $timeLabel", style = dimStyle(9))
+                        Text("Updated $timeLabel", style = dimStyle(9))
                     }
                 }
             }

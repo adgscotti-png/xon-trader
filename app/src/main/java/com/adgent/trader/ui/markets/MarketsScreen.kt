@@ -111,7 +111,7 @@ private fun MarketHeader(onSearch: () -> Unit) {
     ) {
         Column(Modifier.weight(1f)) {
             Text(
-                "Mercati",
+                "Markets",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
             )
@@ -119,7 +119,7 @@ private fun MarketHeader(onSearch: () -> Unit) {
             LiveBadge()
         }
         IconButton(onClick = onSearch) {
-            Icon(Icons.Rounded.Search, contentDescription = "Cerca una crypto")
+            Icon(Icons.Rounded.Search, contentDescription = "Search a coin")
         }
     }
 }
@@ -142,7 +142,7 @@ private fun LiveBadge() {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            "Dati live · Binance",
+            "Live data · Binance",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -264,13 +264,13 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onClose: (
         OutlinedTextField(
             value = query,
             onValueChange = onQueryChange,
-            placeholder = { Text("Cerca simbolo o nome (es. BTC)") },
+            placeholder = { Text("Search symbol or name (e.g. BTC)") },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.weight(1f),
         )
         IconButton(onClick = onClose) {
-            Icon(Icons.Rounded.Close, contentDescription = "Chiudi ricerca")
+            Icon(Icons.Rounded.Close, contentDescription = "Close search")
         }
     }
 }
@@ -284,8 +284,8 @@ private fun SearchResults(
 ) {
     if (results.isEmpty()) {
         EmptyState(
-            title = "Nessun risultato",
-            subtitle = "Prova con un simbolo diverso: BTC, ETH, SOL…",
+            title = "No results",
+            subtitle = "Try a different symbol: BTC, ETH, SOL…",
         )
         return
     }
@@ -331,7 +331,7 @@ private fun OfflineBanner() {
             .padding(horizontal = 16.dp, vertical = 6.dp),
     ) {
         Text(
-            "Sei offline: mostro gli ultimi dati ricevuti.",
+            "You are offline: showing the last received data.",
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onErrorContainer,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -342,9 +342,9 @@ private fun OfflineBanner() {
 @Composable
 private fun EmptyOffline(retry: () -> Unit) {
     EmptyState(
-        title = "Nessun dato",
-        subtitle = "Connessione non disponibile al primo avvio. Riprova quando sei online.",
-        action = { TextButton(onClick = retry) { Text("Riprova") } },
+        title = "No data",
+        subtitle = "Connection unavailable on first launch. Retry once you are online.",
+        action = { TextButton(onClick = retry) { Text("Retry") } },
     )
 }
 

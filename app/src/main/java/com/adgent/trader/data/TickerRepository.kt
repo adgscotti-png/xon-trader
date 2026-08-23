@@ -117,6 +117,40 @@ class TickerRepository(
         }
     }
 
+    /**
+     * Seeding del mercato largo: una sola chiamata /ticker/24hr completa e
+     * cache dei top per volume USDT. Serve al primo avvio, quando la cache è
+     * vuota e la lista "All" mostrebbe solo i preferiti di default.
+     */
+    suspend fun refreshTopMarket(
+        limit: Int = 120,
+        minQuoteVolume: Double = 500_000.0,
+    ): Result<Unit> = runCatching {
+        val top = api.tickers24hAll()
+            .asSequence()
+            .filter { it.symbol.endsWith("USDT") }
+            .map { it.toModel() }
+            .filter { it.quoteVolume24h >= minQuoteVolume }
+            .sortedByDescending { it.quoteVolume24h }
+            .take(limit)
+            .toList()
+        val existing = tickerCacheDao.all().associateBy { it.symbol }
+        tickerCacheDao.upsertAll(
+            top.map { t ->
+                TickerCacheEntity(
+                    symbol = t.symbol,
+                    price = t.price,
+                    changePercent24h = t.changePercent24h,
+                    high24h = t.high24h,
+                    low24h = t.low24h,
+                    quoteVolume24h = t.quoteVolume24h,
+                    sparkline = existing[t.symbol]?.sparkline.orEmpty(),
+                    updatedAt = existing[t.symbol]?.updatedAt ?: 0L,
+                )
+            }
+        )
+    }
+
     // ---------- Sparkline 24h (klines 1h × 24) ----------
 
     suspend fun refreshSparklines(symbols: Collection<String>, maxAgeMs: Long = SPARK_TTL_MS) {

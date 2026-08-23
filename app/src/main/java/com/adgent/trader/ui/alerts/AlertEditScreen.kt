@@ -186,21 +186,21 @@ fun AlertEditScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Chiudi editor")
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Close editor")
             }
             Text(
-                if (ruleId == null) "Nuovo avviso" else "Modifica avviso",
+                if (ruleId == null) "New alert" else "Edit alert",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
             )
         }
 
         // ---------- Simbolo ----------
-        SectionTitle("Strumento", "La coppia crypto da monitorare")
+        SectionTitle("Instrument", "The crypto pair to watch")
         OutlinedTextField(
             value = state.query,
             onValueChange = vm::onQueryChange,
-            placeholder = { Text("Cerca simbolo (es. BTC)") },
+            placeholder = { Text("Search symbol (e.g. BTC)") },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
             leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
@@ -235,7 +235,7 @@ fun AlertEditScreen(
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         ) {
             Text(
-                "Strumento selezionato: ${state.symbol.removeSuffix("USDT")}/USDT",
+                "Selected instrument: ${state.symbol.removeSuffix("USDT")}/USDT",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -243,7 +243,7 @@ fun AlertEditScreen(
         }
 
         // ---------- Tipo ----------
-        SectionTitle("Quando avvisarmi", "La condizione che fa scattare la notifica")
+        SectionTitle("When to alert me", "The condition that triggers the notification")
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
             listOf(AlertType.PRICE_ABOVE, AlertType.PRICE_BELOW).forEach { t ->
                 FilterChip(
@@ -257,17 +257,17 @@ fun AlertEditScreen(
 
         // ---------- Soglia ----------
         SectionTitle(
-            "Prezzo soglia",
+            "Threshold price",
             when (state.type) {
-                AlertType.PRICE_ABOVE -> "Ricevi la notifica se il prezzo sale sopra questo valore"
-                AlertType.PRICE_BELOW -> "Ricevi la notifica se il prezzo scende sotto questo valore"
+                AlertType.PRICE_ABOVE -> "You get the notification if the price rises above this value"
+                AlertType.PRICE_BELOW -> "You get the notification if the price falls below this value"
                 else -> ""
             },
         )
         OutlinedTextField(
             value = state.threshold,
             onValueChange = vm::onThreshold,
-            placeholder = { Text("Es. ${exampleThreshold(state.symbol)}") },
+            placeholder = { Text("e.g. ${exampleThreshold(state.symbol)}") },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
@@ -283,9 +283,9 @@ fun AlertEditScreen(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text("Avviso ripetibile", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                Text("Repeatable alert", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
                 Text(
-                    "Spento: una sola notifica, poi si disattiva da solo.",
+                    "Off: a single notification, then it turns itself off.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -295,7 +295,7 @@ fun AlertEditScreen(
         OutlinedTextField(
             value = state.note,
             onValueChange = vm::onNote,
-            placeholder = { Text("Nota facoltativa, es. \"obiettivo take profit\"") },
+            placeholder = { Text("Optional note, e.g. \"take profit target\"") },
             singleLine = true,
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier
@@ -321,11 +321,11 @@ fun AlertEditScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.White),
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Salva avviso")
+                Text("Save alert")
             }
             if (ruleId != null) {
                 TextButton(onClick = { vm.delete(context) }, modifier = Modifier.weight(1f)) {
-                    Text("Elimina", color = MaterialTheme.colorScheme.error)
+                    Text("Delete", color = MaterialTheme.colorScheme.error)
                 }
             }
         }

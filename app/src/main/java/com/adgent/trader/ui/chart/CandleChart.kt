@@ -49,6 +49,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.adgent.trader.core.common.Format
@@ -98,13 +99,31 @@ private class ChartWindow {
     }
 }
 
-/** Geometria verticale del grafico condivisa tra gesture e rendering. */
-private class ChartLayout(val w: Float, val h: Float, showVolume: Boolean) {
-    val axisLabelHeight = 34f
+/**
+ * Geometria del grafico condivisa tra gesture e rendering: niente testo dentro
+ * l'area candele — fascia superiore per il tooltip OHLC, fascia inferiore per i
+ * tempi, gutter destro per le etichette prezzo.
+ */
+private class ChartLayout(
+    val w: Float,
+    val h: Float,
+    showVolume: Boolean,
+    val gutter: Float,
+) {
+    /** Fascia riservata al tooltip OHLC (mai sopra le candele). */
+    val topBand = 34f
+
+    /** Fascia riservata alle etichette dei tempi. */
+    val axisLabelHeight = 32f
     val volumeBand = if (showVolume) h * 0.14f else 0f
-    val chartTop = 8f
+    val plotLeft = 0f
+    val plotRight = (w - gutter).coerceAtLeast(w * 0.45f)
+    val chartTop = topBand
     val chartBottom = h - axisLabelHeight - volumeBand
+    val plotW = (plotRight - plotLeft).coerceAtLeast(10f)
     val plotH = (chartBottom - chartTop).coerceAtLeast(1f)
+
+    fun slot(count: Float): Float = plotW / count.coerceAtLeast(1f)
 }
 
 /**
@@ -190,6 +209,16 @@ fun CandleChart(
     val density = LocalDensity.current
     val haptics = LocalHapticFeedback.current
 
+    // Larghezza del gutter destro riservata alle etichette prezzo: misurata sui
+    // casi peggiori una volta sola, così gesture e disegno condividono esattamente
+    // la stessa geometria (lo slot candela dipende da questa misura).
+    val gutterPx = remember(textMeasurer) {
+        val style = TextStyle(fontSize = 19.sp)
+        listOf("888,888.88", "0.00001234").maxOf {
+            textMeasurer.measure(it, style).size.width
+        } + 24f
+    }
+
     // Larghezza canvas in px (per il fit delle barre) — 0 finché il primo layout.
     var canvasW by remember { mutableIntStateOf(0) }
 
@@ -238,9 +267,11 @@ fun CandleChart(
             Modifier
                 .fillMaxSize()
                 .onSizeChanged { canvasW = it.width }
-                .pointerInput(klines.size, mode, onCreateAlertAtPrice != null) {
+                .pointerInput(klines.size, mode, onCreateAlertAtPrice != null, gutterPx) {
                     if (klines.isEmpty()) return@pointerInput
                     val slop = viewConfiguration.touchSlop
+                    fun geom(s: IntSize) =
+                        ChartLayout(s.width.toFloat(), s.height.toFloat(), showVolume, gutterPx)
                     // Scope per il timer della pressione prolungata: condivide il
                     // contesto del pointerInput (stesso job → cancellazione inclusa
                     // quando il grafico esce dalla composizione). Il blocco di
@@ -262,9 +293,7 @@ fun CandleChart(
                             ) {
                                 crosshairIdx.intValue = -1
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                val layout = ChartLayout(
-                                    size.width.toFloat(), size.height.toFloat(), showVolume,
-                                )
+                                val layout = geom(size)
                                 val yClamped = down.position.y
                                     .coerceIn(layout.chartTop, layout.chartBottom)
                                 visibleScale(klines, window, ma, bb, livePrice, mode)?.let { s ->
@@ -289,19 +318,19 @@ fun CandleChart(
                                         val zoomChange = event.calculateZoom()
                                         val pan = event.calculatePan()
                                         val centroid = event.calculateCentroid(useCurrent = true)
-                                        val wpx = size.width.toFloat()
+                                        val pw = geom(size).plotW
                                         val nf = klines.size.toFloat()
 
                                         if (!zoomChange.isNaN() && zoomChange != 1f && centroid.x.isFinite()) {
-                                            val oldSlot = wpx / window.count
+                                            val oldSlot = pw / window.count
                                             val anchorIdx = window.start + centroid.x / oldSlot
                                             window.count = (window.count / zoomChange)
                                                 .coerceIn(minOf(8f, nf), min(nf, 500f))
-                                            val newSlot = wpx / window.count
+                                            val newSlot = pw / window.count
                                             window.start = anchorIdx - centroid.x / newSlot
                                         }
                                         if (pan.x.isFinite() && pan.x != 0f) {
-                                            val slot = size.width / window.count
+                                            val slot = pw / window.count
                                             window.start -= pan.x / slot
                                         }
                                         window.clamp(klines.size)
@@ -314,9 +343,7 @@ fun CandleChart(
 
                                     if (alertActive) {
                                         // Trascina la linea verticale: y → prezzo.
-                                        val layout = ChartLayout(
-                                            size.width.toFloat(), size.height.toFloat(), showVolume,
-                                        )
+                                        val layout = geom(size)
                                         val yClamped = pos.y.coerceIn(layout.chartTop, layout.chartBottom)
                                         visibleScale(klines, window, ma, bb, livePrice, mode)?.let { s ->
                                             alertPrice = s.invert(yClamped, layout)
@@ -333,7 +360,7 @@ fun CandleChart(
                                         moved = true
                                         val dx = c.position.x - c.previousPosition.x
                                         if (dx != 0f) {
-                                            val slot = size.width / window.count
+                                            val slot = geom(size).slot(window.count)
                                             window.start -= dx / slot
                                             window.clamp(klines.size)
                                             c.consume()
@@ -342,7 +369,7 @@ fun CandleChart(
 
                                     // Crosshair segue il dito (anche durante il pan).
                                     if (klines.isNotEmpty()) {
-                                        val slot = size.width / window.count
+                                        val slot = geom(size).slot(window.count)
                                         crosshairIdx.intValue = floor(window.start + pos.x / slot)
                                             .toInt()
                                             .coerceIn(0, klines.size - 1)
@@ -377,6 +404,7 @@ fun CandleChart(
                 labelColor = labelColor,
                 crosshairColor = crosshairColor,
                 textMeasurer = textMeasurer,
+                gutter = gutterPx,
             )
         }
 
@@ -434,10 +462,11 @@ private fun DrawScope.drawTradingView(
     labelColor: Color,
     crosshairColor: Color,
     textMeasurer: androidx.compose.ui.text.TextMeasurer,
+    gutter: Float,
 ) {
     val w = size.width
     val h = size.height
-    val layout = ChartLayout(w, h, showVolume)
+    val layout = ChartLayout(w, h, showVolume, gutter)
     val n = klines.size
     if (n == 0 || w < 10f) return
 
@@ -452,13 +481,20 @@ private fun DrawScope.drawTradingView(
 
     fun y(v: Double): Float = scale.y(v, layout)
 
-    val slot = (w / window.count).coerceAtLeast(0.5f)
+    val slot = (layout.plotW / window.count).coerceAtLeast(0.5f)
     fun x(i: Int): Float = (i - window.start + 0.5f) * slot
     val bodyW = (slot * 0.68f).coerceAtLeast(1f)
 
     val labelStyle = TextStyle(fontSize = 19.sp, color = labelColor)
 
-    // --- griglia orizzontale + etichette prezzo (senza sovrapposizioni) ---
+    // Prezzo per i tag nel gutter: formato completo se entra, altrimenti compatto.
+    fun tagPrice(v: Double): String {
+        val full = Format.price(v)
+        val wide = textMeasurer.measure(full, TextStyle(fontSize = 19.sp)).size.width
+        return if (wide <= gutter - 14f) full else Format.compact(v)
+    }
+
+    // --- griglia orizzontale + etichette prezzo nel gutter destro ---
     val rawStep = (hi - lo) / max(3.0, layout.plotH / 64.0)
     val step = niceStep(rawStep)
     val measuredLabelH = textMeasurer.measure(Format.price(hi), labelStyle).size.height
@@ -467,10 +503,10 @@ private fun DrawScope.drawTradingView(
     var gridV = (lo / step).toInt() * step + step
     while (gridV < hi) {
         val gy = y(gridV)
-        drawLine(gridColor, Offset(0f, gy), Offset(w - 4f, gy), strokeWidth = 1f)
+        drawLine(gridColor, Offset(layout.plotLeft, gy), Offset(layout.plotRight, gy), strokeWidth = 1f)
         if (abs(gy - lastLabelCenter) >= minLabelGap) {
-            val lbl = textMeasurer.measure(Format.price(gridV), labelStyle)
-            drawText(lbl, topLeft = Offset(w - lbl.size.width - 10f, gy - lbl.size.height / 2f))
+            val lbl = textMeasurer.measure(tagPrice(gridV), labelStyle)
+            drawText(lbl, topLeft = Offset(w - lbl.size.width - 7f, gy - lbl.size.height / 2f))
             lastLabelCenter = gy
         }
         gridV += step
@@ -490,8 +526,8 @@ private fun DrawScope.drawTradingView(
         drawLine(gridColor, Offset(gx, layout.chartTop), Offset(gx, layout.chartBottom), strokeWidth = 1f)
         val txt = timeFmt.format(Instant.ofEpochMilli(klines[i].openTime))
         val lbl = textMeasurer.measure(txt, labelStyle)
-        val lx = (gx - lbl.size.width / 2f).coerceIn(4f, w - lbl.size.width - 4f)
-        drawText(lbl, topLeft = Offset(lx, h - layout.axisLabelHeight + 8f))
+        val lx = (gx - lbl.size.width / 2f).coerceIn(4f, (layout.plotRight - lbl.size.width - 4f).coerceAtLeast(4f))
+        drawText(lbl, topLeft = Offset(lx, h - layout.axisLabelHeight + 7f))
     }
 
     // --- volumi ---
@@ -607,61 +643,77 @@ private fun DrawScope.drawTradingView(
         }
     }
 
-    // --- linea ultimo prezzo ---
+    // --- linea ultimo prezzo (tag nel gutter, mai sopra le candele) ---
     val lastPrice = livePrice ?: klines.lastOrNull()?.close
     if (lastPrice != null && lastPrice > lo && lastPrice < hi) {
         val ly = y(lastPrice)
-        dashLine(crosshairColor, Offset(0f, ly), Offset(w - 4f, ly))
-        val lbl = textMeasurer.measure(Format.price(lastPrice), TextStyle(fontSize = 19.sp, color = Color.Black))
+        dashLine(crosshairColor, Offset(layout.plotLeft, ly), Offset(layout.plotRight, ly))
+        val lbl = textMeasurer.measure(tagPrice(lastPrice), TextStyle(fontSize = 19.sp, color = Color.Black))
         val bg = if ((livePrice ?: klines.last().close) >= klines[lastIdx].open) upColor else downColor
-        drawRoundRect(bg, Offset(w - lbl.size.width - 14f, ly - lbl.size.height / 2 - 4f),
-            Size(lbl.size.width + 10f, lbl.size.height + 8f), CornerRadius(5f))
+        val tagW = minOf(lbl.size.width + 12f, gutter - 4f).coerceAtLeast(20f)
+        drawRoundRect(bg, Offset(w - tagW - 3f, ly - lbl.size.height / 2 - 4f),
+            Size(tagW, lbl.size.height + 8f), CornerRadius(5f))
         drawText(lbl, topLeft = Offset(w - lbl.size.width - 9f, ly - lbl.size.height / 2))
     }
 
-    // --- linea avviso in piazzamento ---
+    // --- linea avviso in piazzamento (tag nel gutter) ---
     alertPrice?.let { ap ->
         val ay = y(ap).coerceIn(layout.chartTop, layout.chartBottom)
         drawLine(
-            Color(0xFFF0B90B), Offset(0f, ay), Offset(w, ay), strokeWidth = 2f,
+            Color(0xFFF0B90B), Offset(layout.plotLeft, ay), Offset(layout.plotRight, ay), strokeWidth = 2f,
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 8f)),
         )
-        val lbl = textMeasurer.measure(Format.price(ap), TextStyle(fontSize = 19.sp, color = Color.Black))
+        val lbl = textMeasurer.measure(tagPrice(ap), TextStyle(fontSize = 19.sp, color = Color.Black))
+        val tagW = minOf(lbl.size.width + 14f, gutter - 4f).coerceAtLeast(20f)
         drawRoundRect(
             Color(0xFFF0B90B),
-            Offset(8f, ay - lbl.size.height / 2 - 4f),
-            Size(lbl.size.width + 12f, lbl.size.height + 8f),
+            Offset(w - tagW - 3f, ay - lbl.size.height / 2 - 4f),
+            Size(tagW, lbl.size.height + 8f),
             CornerRadius(5f),
         )
-        drawText(lbl, topLeft = Offset(14f, ay - lbl.size.height / 2))
+        drawText(lbl, topLeft = Offset(w - lbl.size.width - 9f, ay - lbl.size.height / 2))
     }
 
-    // --- crosshair + tooltip OHLC ---
+    // --- crosshair + tooltip OHLC nella fascia superiore riservata ---
     if (crosshairIdx in firstIdx..lastIdx) {
         val k = klines[crosshairIdx]
         val cx = x(crosshairIdx)
         val cy = y(k.close)
         dashLine(crosshairColor, Offset(cx, layout.chartTop), Offset(cx, layout.chartBottom))
-        dashLine(crosshairColor, Offset(0f, cy), Offset(w, cy))
+        dashLine(crosshairColor, Offset(layout.plotLeft, cy), Offset(layout.plotRight, cy))
 
+        // Prezzo sotto il dito, nel gutter.
+        val tagLbl = textMeasurer.measure(tagPrice(k.close), TextStyle(fontSize = 19.sp, color = Color.White))
+        val tagBgW = minOf(tagLbl.size.width + 12f, gutter - 4f).coerceAtLeast(20f)
+        drawRoundRect(
+            Color(0xFF2A3040),
+            Offset(w - tagBgW - 3f, (cy - tagLbl.size.height / 2 - 4f).coerceIn(layout.chartTop, layout.chartBottom - tagLbl.size.height - 8f)),
+            Size(tagBgW, tagLbl.size.height + 8f),
+            CornerRadius(5f),
+        )
+        drawText(tagLbl, topLeft = Offset(w - tagLbl.size.width - 9f, cy - tagLbl.size.height / 2))
+
+        // Riga unica data + OHLC nella fascia alta: nessuna sovrapposizione.
         val fmt = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm").withZone(ZoneId.systemDefault())
         val l1 = textMeasurer.measure(fmt.format(Instant.ofEpochMilli(k.openTime)),
             TextStyle(fontSize = 18.sp, color = labelColor))
         val valueStyleUp = TextStyle(fontSize = 19.sp, color = upColor)
         val valueStyleDn = TextStyle(fontSize = 19.sp, color = downColor)
         val isUp = k.close >= k.open
-        val oL = textMeasurer.measure("O ${Format.price(k.open)}", if (isUp) valueStyleUp else valueStyleDn)
-        val hL = textMeasurer.measure("H ${Format.price(k.high)}", if (isUp) valueStyleUp else valueStyleDn)
-        val lL = textMeasurer.measure("L ${Format.price(k.low)}", if (isUp) valueStyleUp else valueStyleDn)
-        val cL = textMeasurer.measure("C ${Format.price(k.close)}", if (isUp) valueStyleUp else valueStyleDn)
+        val style = if (isUp) valueStyleUp else valueStyleDn
         val gap = 12f
-        val rowW = oL.size.width + hL.size.width + lL.size.width + cL.size.width + gap * 3
-        val bx = (cx + 14f).coerceIn(4f, (w - rowW - 12f).coerceAtLeast(4f))
-        var tx = bx
-        drawText(l1, topLeft = Offset(bx, 6f))
-        val rowY = 6f + l1.size.height + 6f
-        listOf(oL, hL, lL, cL).forEach {
-            drawText(it, topLeft = Offset(tx, rowY)); tx += it.size.width + gap
+        var tx = 6f
+        drawText(l1, topLeft = Offset(tx, 8f)); tx += l1.size.width + gap
+        listOf(
+            "O" to k.open,
+            "H" to k.high,
+            "L" to k.low,
+            "C" to k.close,
+        ).forEach { (prefix, v) ->
+            val seg = textMeasurer.measure("$prefix ${tagPrice(v)}", style)
+            if (tx + seg.size.width <= layout.plotRight) {
+                drawText(seg, topLeft = Offset(tx, 7f)); tx += seg.size.width + gap
+            }
         }
     }
 }
@@ -716,13 +768,13 @@ private fun AlertConfirmBar(
             FilterChip(
                 selected = aboveInitial,
                 onClick = { onAboveChange(true) },
-                label = { Text("Sopra") },
+                label = { Text("Above") },
             )
             Spacer(Modifier.width(4.dp))
             FilterChip(
                 selected = !aboveInitial,
                 onClick = { onAboveChange(false) },
-                label = { Text("Sotto") },
+                label = { Text("Below") },
             )
             Spacer(Modifier.width(8.dp))
             Text(
@@ -733,13 +785,13 @@ private fun AlertConfirmBar(
             Spacer(Modifier.width(6.dp))
             IconButton(onClick = onConfirm) {
                 Icon(
-                    Icons.Rounded.Check, contentDescription = "Crea avviso a questo prezzo",
+                    Icons.Rounded.Check, contentDescription = "Create alert at this price",
                     tint = Color(0xFF20B65A),
                 )
             }
             IconButton(onClick = onDismiss) {
                 Icon(
-                    Icons.Rounded.Close, contentDescription = "Annulla",
+                    Icons.Rounded.Close, contentDescription = "Cancel",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

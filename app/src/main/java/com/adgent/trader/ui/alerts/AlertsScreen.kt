@@ -102,15 +102,15 @@ fun AlertsScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                "Avvisi",
+                "Alerts",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Black,
             )
             Spacer(Modifier.width(8.dp))
             Column {
                 Text(
-                    if (state.realtime) "Realtime · notifica in ~1 secondo"
-                    else "Risparmio · controllo ogni 15 minuti",
+                    if (state.realtime) "Realtime · notification in ~1 second"
+                    else "Battery saver · checks every 15 minutes",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -164,18 +164,18 @@ private fun NotifWarningBanner(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
-                    "Notifiche disattivate",
+                    "Notifications disabled",
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    "Senza il permesso gli avvisi non possono arrivare.",
+                    "Without the permission alerts cannot arrive.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onEnable) { Text("Attiva") }
-            TextButton(onClick = onOpenSettings) { Text("Impostazioni") }
+            TextButton(onClick = onEnable) { Text("Enable") }
+            TextButton(onClick = onOpenSettings) { Text("Settings") }
         }
     }
 }
@@ -223,11 +223,11 @@ private fun AlertRow(
                 }
                 Row {
                     TextButton(onClick = onOpenCoin, contentPadding = PaddingValues(0.dp)) {
-                        Text("Apri grafico", style = MaterialTheme.typography.labelMedium)
+                        Text("Open chart", style = MaterialTheme.typography.labelMedium)
                     }
                     Spacer(Modifier.width(8.dp))
                     TextButton(onClick = onEdit, contentPadding = PaddingValues(0.dp)) {
-                        Text("Modifica", style = MaterialTheme.typography.labelMedium)
+                        Text("Edit", style = MaterialTheme.typography.labelMedium)
                     }
                 }
             }
@@ -235,7 +235,7 @@ private fun AlertRow(
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Rounded.Delete,
-                    contentDescription = "Elimina avviso",
+                    contentDescription = "Delete alert",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
@@ -259,10 +259,10 @@ private fun EmptyAlerts(onCreate: () -> Unit) {
             modifier = Modifier.height(44.dp),
         )
         Spacer(Modifier.height(12.dp))
-        Text("Nessun avviso", style = MaterialTheme.typography.titleLarge)
+        Text("No alerts", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(6.dp))
         Text(
-            "Ti avvisiamo quando un prezzo supera la soglia che imposti.\nFunziona anche a app chiusa.",
+            "We notify you when a price crosses the threshold you set.\nWorks even with the app closed.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -271,7 +271,7 @@ private fun EmptyAlerts(onCreate: () -> Unit) {
         ExtendedFloatingActionButton(
             onClick = onCreate,
             icon = { Icon(Icons.Rounded.Add, contentDescription = null) },
-            text = { Text("Crea il primo avviso") },
+            text = { Text("Create your first alert") },
         )
     }
 }

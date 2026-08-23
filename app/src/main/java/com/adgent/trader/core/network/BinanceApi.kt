@@ -28,6 +28,10 @@ interface BinanceApi {
     @GET("api/v3/ticker/24hr")
     suspend fun tickers24h(@Query("symbols") symbols: String): List<Ticker24hDto>
 
+    /** Istantanee 24h di TUTTO il mercato (una chiamata, risposta grande: solo bootstrap). */
+    @GET("api/v3/ticker/24hr")
+    suspend fun tickers24hAll(): List<Ticker24hDto>
+
     @GET("api/v3/klines")
     suspend fun klines(
         @Query("symbol") symbol: String,

@@ -3,6 +3,7 @@ package com.adgent.trader.ui.markets
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
+import com.adgent.trader.core.database.SymbolEntity
 import com.adgent.trader.core.database.TickerCacheEntity
 import com.adgent.trader.data.MarketRow
 import kotlinx.coroutines.Job
@@ -16,10 +17,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 enum class MarketFilter(val label: String) {
-    FAVORITES("Preferiti"),
-    TOP("Tutti"),
-    GAINERS("Guadagni"),
-    LOSERS("Perdite"),
+    FAVORITES("Favorites"),
+    TOP("All"),
+    GAINERS("Gainers"),
+    LOSERS("Losers"),
 }
 
 data class MarketsUiState(
@@ -41,8 +42,34 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     val state = _state.asStateFlow()
 
     private val bases = HashMap<String, String>() // symbol → base asset
+
+    /** Catalogo completo coppie Binance USDT attive: fonte della ricerca. */
+    @Volatile private var catalog: List<SymbolEntity> = emptyList()
     private var pollJob: Job? = null
+    private var searchJob: Job? = null
+    private var catalogJob: Job? = null
     @Volatile private var symbolsLoaded = false
+
+    /**
+     * Carica il catalogo coppie USDT (exchangeInfo → Room) in single-flight:
+     * la ricerca lo joina quando è ancora vuoto, così una exchangeInfo lenta o
+     * fallita al primo avvio non lascia la ricerca morta per tutta la sessione.
+     */
+    private fun ensureCatalog(): Job {
+        catalogJob?.let { if (it.isActive) return it }
+        catalogJob = viewModelScope.launch {
+            val list = runCatching {
+                tickerRepo.ensureSymbols().ifEmpty { tickerRepo.allSymbols() }
+            }.getOrDefault(emptyList())
+            if (list.isNotEmpty()) {
+                catalog = list
+                bases.clear()
+                bases.putAll(tickerRepo.symbolMap(list))
+                symbolsLoaded = true
+            }
+        }
+        return catalogJob
+    }
 
     init {
         val scope = viewModelScope
@@ -66,13 +93,18 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }
 
     private suspend fun bootstrap() {
-        val symbols = runCatching { tickerRepo.ensureSymbols() }.getOrDefault(emptyList())
-        bases.clear()
-        bases.putAll(tickerRepo.symbolMap(symbols))
-        symbolsLoaded = symbols.isNotEmpty()
+        // Catalogo COMPLETO delle coppie USDT (exchangeInfo → Room): anche se la
+        // lista mostra solo i top volume, la ricerca copre tutto il mercato.
+        ensureCatalog().join()
 
         watchlistRepo.ensureDefaults()
         tickerRepo.ensureLive()
+
+        // Primo avvio / cache fredda: seeding dei top volume USDT, così la lista
+        // "All" mostra il mercato e non solo i preferiti di default.
+        if (tickerRepo.observeCached(limit = 1).first().size < 30) {
+            runCatching { tickerRepo.refreshTopMarket() }
+        }
 
         val wanted = wantedSymbols()
         val refreshed = tickerRepo.refreshTickers(wanted)
@@ -143,18 +175,78 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }
 
     fun setSearching(active: Boolean) {
+        searchJob?.cancel()
         _state.update { it.copy(searching = active, query = "", searchResults = emptyList()) }
     }
 
+    /**
+     * Ricerca lettera-per-lettera su TUTTO il catalogo Binance USDT attivo,
+     * non solo sulle righe già caricate in lista: prima i prefissi, poi le
+     * occorrenze interne. I prezzi dei risultati assenti dalla cache vengono
+     * scaricati in batch (il dettaglio poi funziona su qualunque coppia).
+     */
     fun onQueryChange(query: String) {
-        _state.update { current ->
-            current.copy(
-                query = query,
-                searchResults = if (query.isBlank()) emptyList() else current.rows.filter {
-                    it.base.contains(query.trim(), ignoreCase = true) ||
-                        it.symbol.contains(query.trim(), ignoreCase = true)
-                }.take(20),
-            )
+        val q = query.trim()
+        _state.update { it.copy(query = query) }
+        searchJob?.cancel()
+        if (q.isEmpty()) {
+            _state.update { it.copy(searchResults = emptyList()) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(120) // smorza la digitazione
+            // Catalogo non ancora pronto (exchangeInfo lenta/fallita al primo
+            // avvio): attendi il load single-flight prima di dichiarare "no results".
+            if (catalog.isEmpty()) ensureCatalog().join()
+            val starts = ArrayList<SymbolEntity>()
+            val contains = ArrayList<SymbolEntity>()
+            catalog.forEach { s ->
+                when {
+                    s.base.startsWith(q, true) || s.symbol.startsWith(q, true) -> starts += s
+                    s.base.contains(q, true) || s.symbol.contains(q, true) -> contains += s
+                }
+            }
+            val ranked = (starts + contains).take(MAX_SEARCH_RESULTS)
+            if (ranked.isEmpty()) {
+                _state.update { it.copy(searchResults = emptyList()) }
+                return@launch
+            }
+
+            val favs = watchlistRepo.all().map { it.symbol }.toSet()
+            val bySym = tickerRepo.observeCached(limit = 1_000).first().associateBy { it.symbol }
+            val missing = ranked.map { it.symbol }
+                .filter { sym -> bySym[sym]?.updatedAt ?: 0L == 0L }
+            if (missing.isNotEmpty()) {
+                runCatching { tickerRepo.refreshTickers(missing, force = true) }
+            }
+            val fresh = tickerRepo.observeCached(limit = 1_000).first().associateBy { it.symbol }
+
+            _state.update {
+                it.copy(
+                    searchResults = ranked.map { s ->
+                        fresh[s.symbol]?.let { c ->
+                            val liveTick = tickerRepo.liveTick(c.symbol)
+                            MarketRow(
+                                symbol = c.symbol,
+                                base = bases[c.symbol] ?: s.base,
+                                price = liveTick?.price ?: c.price,
+                                changePercent24h = liveTick?.changePercent24h ?: c.changePercent24h,
+                                high24h = liveTick?.high24h ?: c.high24h,
+                                low24h = liveTick?.low24h ?: c.low24h,
+                                quoteVolume24h = liveTick?.quoteVolume24h ?: c.quoteVolume24h,
+                                sparkline = c.sparkline.split(",").mapNotNull { v -> v.toDoubleOrNull() },
+                                isFavorite = c.symbol in favs,
+                            )
+                        // Nessun dato raggiungibile: riga comunque presente, prezzo "—".
+                        } ?: MarketRow(
+                            symbol = s.symbol, base = s.base, price = 0.0,
+                            changePercent24h = 0.0, high24h = 0.0, low24h = 0.0,
+                            quoteVolume24h = 0.0, sparkline = emptyList(),
+                            isFavorite = s.symbol in favs,
+                        )
+                    },
+                )
+            }
         }
     }
 
@@ -172,6 +264,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
 
     companion object {
         private const val MAX_ROWS = 150
+        private const val MAX_SEARCH_RESULTS = 30
         private const val SPARK_BUDGET = 40
     }
 }

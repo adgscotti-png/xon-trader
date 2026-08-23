@@ -120,7 +120,7 @@ class CoinDetailViewModel(
                     type = type.name,
                     threshold = price,
                     repeatable = false,
-                    note = "Dal grafico",
+                    note = "From chart",
                     enabled = true,
                     createdAt = System.currentTimeMillis(),
                     lastTriggeredAt = null,
@@ -134,8 +134,8 @@ class CoinDetailViewModel(
             }
             _state.update {
                 it.copy(
-                    quickAlertMsg = "Avviso creato: ${symbol.removeSuffix("USDT")} " +
-                        (if (above) "sopra" else "sotto") + " $" + Format.price(price),
+                    quickAlertMsg = "Alert created: ${symbol.removeSuffix("USDT")} " +
+                        (if (above) "above" else "below") + " $" + Format.price(price),
                 )
             }
         }

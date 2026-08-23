@@ -100,7 +100,7 @@ fun CoinDetailScreen(
             IconButton(onClick = onClose) {
                 Icon(
                     Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Torna ai mercati",
+                    contentDescription = "Back to markets",
                 )
             }
             CoinBadge(base = base, size = 34.dp)
@@ -119,7 +119,7 @@ fun CoinDetailScreen(
             }) {
                 Icon(
                     imageVector = if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = if (favorite) "Togli dai preferiti" else "Aggiungi ai preferiti",
+                    contentDescription = if (favorite) "Remove from favorites" else "Add to favorites",
                     tint = if (favorite)
                         androidx.compose.ui.graphics.Color(0xFFF5B301)
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -254,19 +254,19 @@ fun CoinDetailScreen(
             ) {
                 Icon(Icons.Outlined.AddAlert, contentDescription = null, modifier = Modifier.height(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text("Crea avviso")
+                Text("Create alert")
             }
             OutlinedButton(
                 onClick = onClose,
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Chiudi")
+                Text("Close")
             }
         }
         state.offline.let {
             if (it) {
                 Text(
-                    "Grafico offline: mostro i dati in cache.",
+                    "Chart offline: showing cached data.",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp),
@@ -404,11 +404,11 @@ private fun ChartEmpty(onRetry: () -> Unit) {
         verticalArrangement = Arrangement.Center,
     ) {
         Text(
-            "Nessun dato disponibile",
+            "No data available",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(6.dp))
-        TextButton(onClick = onRetry) { Text("Riprova") }
+        TextButton(onClick = onRetry) { Text("Retry") }
     }
 }

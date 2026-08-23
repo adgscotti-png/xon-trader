@@ -5,25 +5,27 @@ import kotlin.math.abs
 import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.pow
+import kotlin.math.roundToLong
 
 /**
- * Stile di formattazione del prezzo selezionabile (widget): da quello adattivo
- * alle versioni compatte pensate per testo grande con poche informazioni.
+ * Price display style selectable per widget: from the adaptive default to the
+ * compact variants meant for large text with minimal information.
  */
 enum class NumberFormatMode(val label: String, val example: String) {
-    AUTO("Auto", "97.400,12"),
-    FULL("Completo", "97.400,12"),
-    PLAIN("Senza virgole", "97400"),
-    COMPACT("Approssimato", "97,4k"),
+    AUTO("Auto", "97,400.12"),
+    FULL("Full", "97,400.12"),
+    WHOLE("No decimals", "97400"),
+    COMPACT("Compact", "97.4k"),
 }
 
 /**
- * Formattazione numerica professionale per prezzi crypto:
- * cifre significative adattive, separatori localizzati, tabular figures a livello UI.
+ * Professional numeric formatting for crypto prices:
+ * adaptive significant digits, US-style separators (app UI is English),
+ * tabular figures at the UI level.
  */
 object Format {
 
-    /** Prezzo con precisione adattiva: 43.125,60 · 0,00001234 · 1,2345 */
+    /** Adaptive-precision price: 43,125.60 · 0.00001234 · 1.2345 */
     fun price(v: Double): String = when {
         v <= 0.0 -> "—"
         v >= 100_000 -> group(v, 0)
@@ -32,7 +34,7 @@ object Format {
         else -> significant(v, 6)
     }
 
-    /** Prezzo nello stile scelto dall'utente (usato dai widget home screen). */
+    /** Price in the user-selected style (home screen widgets). */
     fun price(v: Double, mode: NumberFormatMode): String = when (mode) {
         NumberFormatMode.AUTO -> price(v)
         NumberFormatMode.FULL -> when {
@@ -40,16 +42,16 @@ object Format {
             v >= 1 -> group(v, 2)
             else -> significant(v, 6)
         }
-        NumberFormatMode.PLAIN -> when {
+        // Intero tondo senza separatori: pensato per testi molto grandi.
+        NumberFormatMode.WHOLE -> when {
             v <= 0.0 -> "—"
-            v >= 1_000 -> group(v, 0).replace(".", "")
-            v >= 1 -> group(v, 2).replace(".", "").replace(",", ".")
-            else -> significant(v, 6).replace(".", "").replace(",", ".")
+            v >= 1 -> v.roundToLong().toString()
+            else -> significant(v, 4).replace(",", "")
         }
         NumberFormatMode.COMPACT -> compactShort(v)
     }
 
-    /** Compatto breve per testi grandi: 97,4k · 1,2M · 345 · 0,000012 */
+    /** Short compact form for big text: 97.4k · 1.2M · 345 · 0.000012 */
     private fun compactShort(v: Double): String {
         if (v <= 0) return "—"
         return if (v >= 1000) {
@@ -65,23 +67,23 @@ object Format {
     fun percent(v: Double): String =
         (if (v >= 0) "+" else "−") + group(abs(v), 2) + "%"
 
-    /** Volume compatto: 12,4 Mld · 850 Mln · 12,3 mln… stile it. */
+    /** Compact volume: 12.4B · 850M · 12.3k. */
     fun compact(v: Double): String {
         if (v <= 0) return "—"
         val exp = (ln(v) / ln(1000.0)).toInt().coerceIn(0, 4)
         val scaled = v / 1000.0.pow(exp)
         val suffix = when (exp) {
             0 -> ""
-            1 -> " k"
-            2 -> " Mln"
-            3 -> " Mld"
-            else -> " Bln"
+            1 -> "k"
+            2 -> "M"
+            3 -> "B"
+            else -> "T"
         }
         return group(scaled, if (scaled >= 100) 1 else 2) + suffix
     }
 
     private fun group(v: Double, decimals: Int): String =
-        String.format(Locale.ITALY, "%,.${decimals}f", v)
+        String.format(Locale.US, "%,.${decimals}f", v)
 
     private fun significant(v: Double, sig: Int): String {
         if (v == 0.0) return "0"

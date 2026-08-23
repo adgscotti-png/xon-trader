@@ -92,9 +92,9 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
     val currentRoute = backStack?.destination?.route
 
     val tabs = listOf(
-        TopLevelItem("markets", "Mercati", Icons.Rounded.CandlestickChart),
-        TopLevelItem("alerts", "Avvisi", Icons.Outlined.Notifications),
-        TopLevelItem("settings", "Impostazioni", Icons.Outlined.Settings),
+        TopLevelItem("markets", "Markets", Icons.Rounded.CandlestickChart),
+        TopLevelItem("alerts", "Alerts", Icons.Outlined.Notifications),
+        TopLevelItem("settings", "Settings", Icons.Outlined.Settings),
     )
     val isTopLevel = tabs.any { it.route == currentRoute }
 

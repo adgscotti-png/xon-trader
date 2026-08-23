@@ -25,3 +25,6 @@ keystore/
 
 # Session dir Kotlin 2.x (artefatto locale)
 .kotlin/
+
+# Screenshot di verifica E2E (rigenerabili, appesantiscono il repo)
+shots/

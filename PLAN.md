@@ -211,3 +211,50 @@ il sistema scarta ogni notifica in silenzio. Ora:
 - Cleanup config alla rimozione del widget (`onDeleted`).
 
 **Release 0.2.1** (versionCode 3).
+
+## 9. Ondata F8 — feedback beta round 2 (23/08/2026)
+
+Cinque segnalazioni di Andrea su 0.2.1, tutte affrontate in un'unica ondata.
+
+### 1. Widget: configurazione non applicata (CRITICO)
+- **Causa radice**: `WidgetConfigActivity` salvava e chiamava `onClose(true)` dentro
+  `rememberCoroutineScope` → il finish() cancellava lo scope PRIMA che
+  `updateAll` finisse e prima che RESULT_OK venisse consegnato; il sistema
+  scartava il widget piazzato e alla riaggiunta l'id nuovo ripartiva dai
+  default (ETH / formato AUTO). Coincide con entrambi i sintomi riportati.
+- **Fix**: setResult+finish immediati al tap su "Save and apply"; ridisegno
+  widget su `appContainer.appScope` (scope dell'app, sopravvive all'activity).
+- **Fallback errato eliminato**: simbolo configurato vince SEMPRE — cache →
+  fetch live immediato (`refreshTickers(listOf(sym), force=true)`) → segnaposto.
+  Mai più un'altra moneta al posto di quella scelta (`fetchRowLive`).
+- **Formati numero corretti** (`Format.kt` riscritto): WHOLE = intero senza
+  decimali ("97400"), COMPACT = approssimato ("97.4k"), FULL/AUTO con decimali.
+
+### 2. Ricerca mercati su TUTTO il catalogo Binance
+- `MarketsViewModel`: catalogo completo coppie USDT attive da `exchangeInfo`
+  (già in Room via `ensureSymbols`) usato come fonte ricerca; debounce 120ms;
+  ranking prefissi→contiene; max 30 risultati; prezzi dei risultati mancanti
+  scaricati in batch (riga con prezzo "—" se offline).
+
+### 3. Grafico: legenda fuori dall'area candele
+- `ChartLayout` con bande riservate: top 34px (tooltip OHLC) + gutter destro
+  misurato sui label prezzo + fascia assiale sotto 32px; volume sotto ancora.
+- Etichette prezzo right-aligned nel gutter (mai sopra le candele), tag prezzo
+  live/alert/crosshair nel gutter colorato, fallback compat se il formato pieno
+  non entra; griglia solo sull'area plot.
+
+### 4. UI completamente in inglese
+- Tutte le schermate tradotte (Mercati/Alerts/Settings, editor avvisi, dettaglio
+  coin, chart confirm bar, canali notifica, prompt biometrico, config widget,
+  strings.xml). Formattazione numeri US (Locale.US).
+
+### 5. Crash backup esporta/ripristino
+- Launch SAF protetti (`safeLaunch`) con toast su errore picker OEM;
+  MIME concreti invece di wildcard. **Verificato su emulatore (23/08, E2E 0.2.2)**:
+  sia Export (`CreateDocument`) sia Restore (`OpenDocument`) aprono il picker
+  senza crash. ⚠️ Nota verifica: i bottoni sono **sotto la piega** in Settings
+  (~y>2127) — lo script deve scrollare prima del tap; coordinate reali dopo lo
+  scroll: Export≈(257,1438), Restore≈(654,1438). La prima bozza dello script
+  tap-pava a (300,1560)/(800,1560) mancando i bottoni (falso "export rotto").
+
+**Release 0.2.2** (versionCode 4).

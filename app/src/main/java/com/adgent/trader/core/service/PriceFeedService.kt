@@ -24,7 +24,7 @@ class PriceFeedService : Service() {
     override fun onCreate() {
         super.onCreate()
         Notifications.ensureChannels(this)
-        startForeground(SERVICE_NOTIF_ID, Notifications.serviceNotification(this, "Avvisi prezzo attivi"))
+        startForeground(SERVICE_NOTIF_ID, Notifications.serviceNotification(this, "Price alerts active"))
         observeAndEvaluate()
     }
 
