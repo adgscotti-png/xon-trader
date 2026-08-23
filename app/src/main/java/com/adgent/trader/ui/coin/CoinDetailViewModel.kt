@@ -23,7 +23,7 @@ data class CoinDetailUiState(
     val klines: List<Kline> = emptyList(),
     val timeframe: Timeframe = Timeframe.DEFAULT,
     val chartMode: ChartMode = ChartMode.CANDLES,
-    val showMa: Boolean = true,
+    val showMa: Boolean = false,
     val showEma: Boolean = false,
     val showBb: Boolean = false,
     /** Sub-chart oscillatore attivo (null = nessuno). */

@@ -49,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adgent.trader.core.common.Format
@@ -103,58 +104,70 @@ fun CoinDetailScreen(
             .verticalScroll(rememberScrollState()),
     ) {
         // ---------- Barra superiore ----------
-        Row(
+        // Riga 1: nome coin + coppia di trading. Riga 2: prezzo + variazione + ora.
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onClose) {
-                Icon(
-                    Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = "Back to markets",
-                )
-            }
-            CoinBadge(base = base, size = 34.dp)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(base, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Text(
-                    "$base/USDT · Binance",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Column(horizontalAlignment = Alignment.End) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val priceText = state.livePrice?.let { Format.price(it) }
-                        ?: state.klines.lastOrNull()?.close?.let { Format.price(it) }
-                        ?: "—"
-                    Text(
-                        text = if (priceText == "—") priceText else "$" + priceText,
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Black,
-                        maxLines = 1,
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                IconButton(onClick = onClose) {
+                    Icon(
+                        Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = "Back to markets",
                     )
-                    state.changePercent24h?.let {
-                        Spacer(Modifier.width(6.dp))
-                        ChangeBadge(percent = it)
-                    }
                 }
-                Spacer(Modifier.height(2.dp))
-                LiveTimeText()
+                CoinBadge(base = base, size = 34.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(base, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(
+                        "$base/USDT · Binance",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = {
+                    favorite = !favorite
+                    vm.toggleFavorite()
+                }) {
+                    Icon(
+                        imageVector = if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                        contentDescription = if (favorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (favorite)
+                            androidx.compose.ui.graphics.Color(0xFFF5B301)
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
-            IconButton(onClick = {
-                favorite = !favorite
-                vm.toggleFavorite()
-            }) {
-                Icon(
-                    imageVector = if (favorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                    contentDescription = if (favorite) "Remove from favorites" else "Add to favorites",
-                    tint = if (favorite)
-                        androidx.compose.ui.graphics.Color(0xFFF5B301)
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
+            // Indent 92 = back(48) + badge(34) + spacer(10): prezzo allineato sotto il nome.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 92.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                val priceText = state.livePrice?.let { Format.price(it) }
+                    ?: state.klines.lastOrNull()?.close?.let { Format.price(it) }
+                    ?: "—"
+                Text(
+                    text = if (priceText == "—") priceText else "$" + priceText,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false),
                 )
+                state.changePercent24h?.let {
+                    Spacer(Modifier.width(8.dp))
+                    ChangeBadge(percent = it)
+                }
+                Spacer(Modifier.width(10.dp))
+                LiveTimeText()
             }
         }
 
@@ -412,10 +425,10 @@ private fun StatsCard(state: CoinDetailUiState) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    "High  " + Format.price(high),
+                    "Low  " + Format.price(low),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MarketGreen,
+                    color = MarketRed,
                 )
                 if (price != null) {
                     Spacer(Modifier.width(10.dp))
@@ -430,10 +443,10 @@ private fun StatsCard(state: CoinDetailUiState) {
                     Spacer(Modifier.weight(1f))
                 }
                 Text(
-                    "Low  " + Format.price(low),
+                    "High  " + Format.price(high),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MarketRed,
+                    color = MarketGreen,
                 )
             }
             state.quoteVolume24h?.let { vol ->
@@ -460,15 +473,13 @@ private fun StatsCard(state: CoinDetailUiState) {
 }
 
 /**
- * Barra orizzontale High-Low: High a sinistra, Low a destra. Il riempimento
- * brand parte dal lato High e il marker bianco segna la distanza del prezzo
- * corrente dal massimo 24h.
+ * Barra orizzontale Low-High: Low a sinistra, High a destra. Il riempimento
+ * brand cresce dal lato Low e il marker bianco segna la posizione del prezzo
+ * corrente nel range 24h (a sinistra al minimo, a destra al massimo).
  */
 @Composable
 private fun RangeBar(low: Double, high: Double, price: Double, modifier: Modifier = Modifier) {
     val frac = if (high > low) ((price - low) / (high - low)).toFloat().coerceIn(0f, 1f) else 0.5f
-    // High a sinistra: la distanza dal valore più alto è (1 - frac).
-    val fromHigh = 1f - frac
     BoxWithConstraints(modifier = modifier) {
         val trackWidth = maxWidth - 10.dp
         val marker = 10.dp
@@ -481,14 +492,14 @@ private fun RangeBar(low: Double, high: Double, price: Double, modifier: Modifie
         )
         Box(
             Modifier
-                .width(trackWidth * fromHigh + marker)
+                .width(trackWidth * frac + marker)
                 .height(6.dp)
                 .background(Brush.horizontalGradient(BrandGradient), CircleShape)
                 .align(Alignment.CenterStart),
         )
         Box(
             Modifier
-                .offset(x = trackWidth * fromHigh)
+                .offset(x = trackWidth * frac)
                 .size(marker)
                 .background(androidx.compose.ui.graphics.Color.White, CircleShape)
                 .align(Alignment.CenterStart),

@@ -485,12 +485,13 @@ private fun DrawScope.drawTradingView(
     fun x(i: Int): Float = (i - window.start + 0.5f) * slot
     val bodyW = (slot * 0.68f).coerceAtLeast(1f)
 
-    val labelStyle = TextStyle(fontSize = 19.sp, color = labelColor)
+    // Legenda prezzo nel gutter destro: stesso carattere dell'asse tempo (12sp).
+    val labelStyle = TextStyle(fontSize = 12.sp, color = labelColor)
 
     // Prezzo per i tag nel gutter: formato completo se entra, altrimenti compatto.
     fun tagPrice(v: Double): String {
         val full = Format.price(v)
-        val wide = textMeasurer.measure(full, TextStyle(fontSize = 19.sp)).size.width
+        val wide = textMeasurer.measure(full, TextStyle(fontSize = 12.sp)).size.width
         return if (wide <= gutter - 14f) full else Format.compact(v)
     }
 
@@ -655,7 +656,7 @@ private fun DrawScope.drawTradingView(
     if (lastPrice != null && lastPrice > lo && lastPrice < hi) {
         val ly = y(lastPrice)
         dashLine(crosshairColor, Offset(layout.plotLeft, ly), Offset(layout.plotRight, ly))
-        val lbl = textMeasurer.measure(tagPrice(lastPrice), TextStyle(fontSize = 19.sp, color = Color.Black))
+        val lbl = textMeasurer.measure(tagPrice(lastPrice), TextStyle(fontSize = 12.sp, color = Color.Black))
         val bg = if ((livePrice ?: klines.last().close) >= klines[lastIdx].open) upColor else downColor
         val tagW = minOf(lbl.size.width + 12f, gutter - 4f).coerceAtLeast(20f)
         drawRoundRect(bg, Offset(w - tagW - 3f, ly - lbl.size.height / 2 - 4f),
@@ -670,7 +671,7 @@ private fun DrawScope.drawTradingView(
             Color(0xFFF0B90B), Offset(layout.plotLeft, ay), Offset(layout.plotRight, ay), strokeWidth = 2f,
             pathEffect = PathEffect.dashPathEffect(floatArrayOf(14f, 8f)),
         )
-        val lbl = textMeasurer.measure(tagPrice(ap), TextStyle(fontSize = 19.sp, color = Color.Black))
+        val lbl = textMeasurer.measure(tagPrice(ap), TextStyle(fontSize = 12.sp, color = Color.Black))
         val tagW = minOf(lbl.size.width + 14f, gutter - 4f).coerceAtLeast(20f)
         drawRoundRect(
             Color(0xFFF0B90B),
@@ -690,7 +691,7 @@ private fun DrawScope.drawTradingView(
         dashLine(crosshairColor, Offset(layout.plotLeft, cy), Offset(layout.plotRight, cy))
 
         // Prezzo sotto il dito, nel gutter.
-        val tagLbl = textMeasurer.measure(tagPrice(k.close), TextStyle(fontSize = 19.sp, color = Color.White))
+        val tagLbl = textMeasurer.measure(tagPrice(k.close), TextStyle(fontSize = 12.sp, color = Color.White))
         val tagBgW = minOf(tagLbl.size.width + 12f, gutter - 4f).coerceAtLeast(20f)
         drawRoundRect(
             Color(0xFF2A3040),
