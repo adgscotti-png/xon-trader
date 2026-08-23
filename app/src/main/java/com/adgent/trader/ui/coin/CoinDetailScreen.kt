@@ -125,6 +125,25 @@ fun CoinDetailScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Column(horizontalAlignment = Alignment.End) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    val priceText = state.livePrice?.let { Format.price(it) }
+                        ?: state.klines.lastOrNull()?.close?.let { Format.price(it) }
+                        ?: "—"
+                    Text(
+                        text = if (priceText == "—") priceText else "$" + priceText,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Black,
+                        maxLines = 1,
+                    )
+                    state.changePercent24h?.let {
+                        Spacer(Modifier.width(6.dp))
+                        ChangeBadge(percent = it)
+                    }
+                }
+                Spacer(Modifier.height(2.dp))
+                LiveTimeText()
+            }
             IconButton(onClick = {
                 favorite = !favorite
                 vm.toggleFavorite()
@@ -139,7 +158,10 @@ fun CoinDetailScreen(
             }
         }
 
-        // ---------- Grafico + controlli (prezzo integrato nella scheda) ----------
+        // ---------- Statistiche 24h (sopra il grafico) ----------
+        StatsCard(state)
+
+        // ---------- Grafico + controlli ----------
         Surface(
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             shape = RoundedCornerShape(20.dp),
@@ -148,7 +170,6 @@ fun CoinDetailScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Column(Modifier.padding(vertical = 6.dp)) {
-                PriceHeader(state)
                 TimeframeSelector(
                     selected = state.timeframe,
                     onSelect = vm::setTimeframe,
@@ -230,9 +251,6 @@ fun CoinDetailScreen(
                 }
             }
         }
-
-        // ---------- Statistiche 24h ----------
-        StatsCard(state)
 
         // ---------- Azioni ----------
         Row(
@@ -346,37 +364,9 @@ private fun ChartControls(
     }
 }
 
+/** Orologio live (solo HH:mm:ss) nella barra superiore accanto al prezzo. */
 @Composable
-private fun PriceHeader(state: CoinDetailUiState) {
-    val priceText = state.livePrice?.let { Format.price(it) }
-        ?: state.klines.lastOrNull()?.close?.let { Format.price(it) }
-        ?: "—"
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = if (priceText == "—") priceText else "$" + priceText,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Black,
-            maxLines = 1,
-            modifier = Modifier.weight(1f),
-        )
-        Column(horizontalAlignment = Alignment.End) {
-            state.changePercent24h?.let {
-                ChangeBadge(percent = it)
-            }
-            Spacer(Modifier.height(4.dp))
-            LiveClockText()
-        }
-    }
-}
-
-/** Orologio live (HH:mm:ss · data) accanto al prezzo nella scheda grafico. */
-@Composable
-private fun LiveClockText() {
+private fun LiveTimeText() {
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -387,8 +377,7 @@ private fun LiveClockText() {
     val zone = ZoneId.systemDefault()
     val t = Instant.ofEpochMilli(now).atZone(zone)
     Text(
-        text = t.format(DateTimeFormatter.ofPattern("HH:mm:ss")) +
-            " · " + t.format(DateTimeFormatter.ofPattern("dd/MM/yy")),
+        text = t.format(DateTimeFormatter.ofPattern("HH:mm:ss")),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -420,7 +409,6 @@ private fun StatsCard(state: CoinDetailUiState) {
             Spacer(Modifier.height(8.dp))
             Row(
                 Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -429,16 +417,24 @@ private fun StatsCard(state: CoinDetailUiState) {
                     fontWeight = FontWeight.SemiBold,
                     color = MarketGreen,
                 )
+                if (price != null) {
+                    Spacer(Modifier.width(10.dp))
+                    RangeBar(
+                        low = low,
+                        high = high,
+                        price = price,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Spacer(Modifier.width(10.dp))
+                } else {
+                    Spacer(Modifier.weight(1f))
+                }
                 Text(
                     "Low  " + Format.price(low),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.SemiBold,
                     color = MarketRed,
                 )
-            }
-            if (price != null) {
-                Spacer(Modifier.height(8.dp))
-                RangeBar(low = low, high = high, price = price)
             }
             state.quoteVolume24h?.let { vol ->
                 Spacer(Modifier.height(8.dp))
@@ -464,13 +460,16 @@ private fun StatsCard(state: CoinDetailUiState) {
 }
 
 /**
- * Barra orizzontale High-Low: il riempimento brand segna la posizione del
- * prezzo corrente nel range 24h, con marker bianco sulla punta.
+ * Barra orizzontale High-Low: High a sinistra, Low a destra. Il riempimento
+ * brand parte dal lato High e il marker bianco segna la distanza del prezzo
+ * corrente dal massimo 24h.
  */
 @Composable
 private fun RangeBar(low: Double, high: Double, price: Double, modifier: Modifier = Modifier) {
     val frac = if (high > low) ((price - low) / (high - low)).toFloat().coerceIn(0f, 1f) else 0.5f
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
+    // High a sinistra: la distanza dal valore più alto è (1 - frac).
+    val fromHigh = 1f - frac
+    BoxWithConstraints(modifier = modifier) {
         val trackWidth = maxWidth - 10.dp
         val marker = 10.dp
         Box(
@@ -482,14 +481,14 @@ private fun RangeBar(low: Double, high: Double, price: Double, modifier: Modifie
         )
         Box(
             Modifier
-                .width(trackWidth * frac + marker)
+                .width(trackWidth * fromHigh + marker)
                 .height(6.dp)
                 .background(Brush.horizontalGradient(BrandGradient), CircleShape)
                 .align(Alignment.CenterStart),
         )
         Box(
             Modifier
-                .offset(x = trackWidth * frac)
+                .offset(x = trackWidth * fromHigh)
                 .size(marker)
                 .background(androidx.compose.ui.graphics.Color.White, CircleShape)
                 .align(Alignment.CenterStart),
