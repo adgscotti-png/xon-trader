@@ -47,14 +47,19 @@ fun PriceText(
     fontWeight: FontWeight = FontWeight.SemiBold,
     color: Color = MaterialTheme.colorScheme.onSurface,
     prefix: String = "$",
+    maxLines: Int = 1,
+    overflow: androidx.compose.ui.text.style.TextOverflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
 ) {
     Text(
-        text = prefix + Format.price(price),
+        // Prezzo 0 / sconosciuto → "—" senza simbolo: "—" è già il segnaposto.
+        text = if (price > 0) prefix + Format.price(price) else Format.price(price),
         color = color,
         fontSize = fontSize,
         fontWeight = fontWeight,
         lineHeight = fontSize * 1.25f,
         style = TextStyle(fontFeatureSettings = "tnum"),
+        maxLines = maxLines,
+        overflow = overflow,
         modifier = modifier,
     )
 }

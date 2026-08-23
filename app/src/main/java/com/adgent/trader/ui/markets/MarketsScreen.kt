@@ -21,10 +21,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -51,17 +52,22 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.adgent.trader.core.common.Format
 import com.adgent.trader.data.MarketRow
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.components.CoinBadge
 import com.adgent.trader.ui.components.PriceText
 import com.adgent.trader.ui.components.Sparkline
+import com.adgent.trader.ui.theme.MarketGreen
+import com.adgent.trader.ui.theme.MarketRed
 
 /**
- * Schermata Mercati: lista live con filtri, ricerca e preferiti.
+ * Schermata Mercati: griglia di card live con filtri, ricerca e preferiti.
  * Tap apre il dettaglio con grafico · long-press aggiunge/toglie dai preferiti.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -92,7 +98,7 @@ fun MarketsScreen(
                 when {
                     state.loading -> LoadingIndicator()
                     state.rows.isEmpty() && state.offlineSinceMs != null -> EmptyOffline(vm::retry)
-                    else -> MarketList(state.rows, onOpenCoin, vm::toggleFavorite)
+                    else -> MarketGrid(state.rows, onOpenCoin, vm::toggleFavorite)
                 }
             }
         }
@@ -173,83 +179,160 @@ private fun FilterChips(selected: MarketFilter, onSelect: (MarketFilter) -> Unit
     }
 }
 
-// ---------- Lista mercati ----------
+// ---------- Griglia mercati ----------
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun MarketList(
+private fun MarketGrid(
     rows: List<MarketRow>,
     onOpenCoin: (String) -> Unit,
     onToggleFavorite: (String) -> Unit,
+    showFavoriteToggle: Boolean = false,
 ) {
-    LazyColumn(Modifier.fillMaxSize()) {
-        itemsIndexed(rows, key = { _, r -> r.symbol }) { _, row ->
-            MarketRowItem(
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(2),
+        contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        items(rows, key = { it.symbol }) { row ->
+            MarketCard(
                 row = row,
                 showFavorite = row.isFavorite,
-                modifier = Modifier
-                    .animateItem()
-                    .combinedClickable(
-                        onClick = { onOpenCoin(row.symbol) },
-                        onLongClick = { onToggleFavorite(row.symbol) },
-                    ),
+                showFavoriteToggle = showFavoriteToggle,
+                onToggleFavorite = { onToggleFavorite(row.symbol) },
+                modifier = Modifier.combinedClickable(
+                    onClick = { onOpenCoin(row.symbol) },
+                    onLongClick = { onToggleFavorite(row.symbol) },
+                ),
             )
         }
-        item { Spacer(Modifier.height(96.dp)) }
+    }
+}
+
+/**
+ * Card mercato 2-per-riga (stile TabTrader): badge, nome/simbolo, sparkline,
+ * prezzo, variazione % e statistiche 24h. I dati sono gli stessi della vecchia
+ * riga lista — cambia solo la presentazione.
+ */
+@Composable
+private fun MarketCard(
+    row: MarketRow,
+    showFavorite: Boolean,
+    showFavoriteToggle: Boolean,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(150.dp)
+                .padding(12.dp),
+        ) {
+            // Riga superiore: badge, nome/simbolo, sparkline (o toggle preferito in ricerca).
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CoinBadge(base = row.base, size = 34.dp)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            row.base,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (showFavorite) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(
+                                Icons.Rounded.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFF5B301),
+                                modifier = Modifier.size(12.dp),
+                            )
+                        }
+                    }
+                    Text(
+                        row.symbol,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+                if (showFavoriteToggle) {
+                    IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            imageVector = if (showFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                            contentDescription = if (showFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (showFavorite) Color(0xFFF5B301) else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                } else {
+                    Sparkline(
+                        values = row.sparkline,
+                        positive = row.changePercent24h >= 0,
+                        modifier = Modifier
+                            .width(52.dp)
+                            .height(22.dp)
+                            .alpha(if (row.sparkline.isEmpty()) 0f else 1f),
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Prezzo + badge variazione.
+            Row(verticalAlignment = Alignment.Bottom) {
+                PriceText(
+                    price = row.price,
+                    fontSize = 17.sp,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(6.dp))
+                ChangeBadge(percent = row.changePercent24h, compact = true)
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // Mini-statistiche 24h in fondo alla card: massimo, minimo, volume.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                CardStat("24h H", Format.price(row.high24h), MarketGreen, Modifier.weight(1f))
+                CardStat("24h L", Format.price(row.low24h), MarketRed, Modifier.weight(1f))
+                CardStat("Vol", Format.compact(row.quoteVolume24h), null, Modifier.weight(1f))
+            }
+        }
     }
 }
 
 @Composable
-private fun MarketRowItem(
-    row: MarketRow,
-    showFavorite: Boolean,
+private fun CardStat(
+    label: String,
+    value: String,
+    valueColor: Color?,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        CoinBadge(base = row.base, size = 38.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    row.base,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (showFavorite) {
-                    Spacer(Modifier.width(5.dp))
-                    Icon(
-                        Icons.Rounded.Star,
-                        contentDescription = null,
-                        tint = Color(0xFFF5B301),
-                        modifier = Modifier.size(13.dp),
-                    )
-                }
-            }
-            Text(
-                row.symbol,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Sparkline(
-            values = row.sparkline,
-            positive = row.changePercent24h >= 0,
-            modifier = Modifier
-                .width(56.dp)
-                .height(26.dp)
-                .alpha(if (row.sparkline.isEmpty()) 0f else 1f),
+    Column(modifier) {
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.width(12.dp))
-        Column(horizontalAlignment = Alignment.End) {
-            PriceText(price = row.price)
-            Spacer(Modifier.height(2.dp))
-            ChangeBadge(percent = row.changePercent24h, compact = true)
-        }
+        Spacer(Modifier.height(1.dp))
+        Text(
+            value,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -275,7 +358,6 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onClose: (
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun SearchResults(
     results: List<MarketRow>,
@@ -289,27 +371,12 @@ private fun SearchResults(
         )
         return
     }
-    LazyColumn(Modifier.fillMaxSize()) {
-        items(results, key = { it.symbol }) { row ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                MarketRowItem(
-                    row = row,
-                    showFavorite = false,
-                    modifier = Modifier
-                        .weight(1f)
-                        .combinedClickable(onClick = { onOpenCoin(row.symbol) }),
-                )
-                IconButton(onClick = { onToggleFavorite(row.symbol) }) {
-                    Icon(
-                        imageVector = if (row.isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                        contentDescription = if (row.isFavorite) "Togli dai preferiti" else "Aggiungi ai preferiti",
-                        tint = if (row.isFavorite) Color(0xFFF5B301) else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
-        item { Spacer(Modifier.height(96.dp)) }
-    }
+    MarketGrid(
+        rows = results,
+        onOpenCoin = onOpenCoin,
+        onToggleFavorite = onToggleFavorite,
+        showFavoriteToggle = true,
+    )
 }
 
 // ---------- Stati speciali ----------

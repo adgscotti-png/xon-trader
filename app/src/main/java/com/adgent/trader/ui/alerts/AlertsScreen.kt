@@ -43,6 +43,7 @@ import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.notifications.Notifications
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.appViewModel
+import com.adgent.trader.ui.components.CoinBadge
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -190,7 +191,7 @@ private fun AlertRow(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp),
@@ -199,13 +200,7 @@ private fun AlertRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
         ) {
-            Icon(
-                Icons.Outlined.NotificationsActive,
-                contentDescription = null,
-                tint = if (rule.enabled) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.height(22.dp),
-            )
+            CoinBadge(base = rule.symbol.removeSuffix("USDT"), size = 30.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(

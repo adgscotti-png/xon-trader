@@ -57,7 +57,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
      */
     private fun ensureCatalog(): Job {
         catalogJob?.let { if (it.isActive) return it }
-        catalogJob = viewModelScope.launch {
+        return viewModelScope.launch {
             val list = runCatching {
                 tickerRepo.ensureSymbols().ifEmpty { tickerRepo.allSymbols() }
             }.getOrDefault(emptyList())
@@ -67,8 +67,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                 bases.putAll(tickerRepo.symbolMap(list))
                 symbolsLoaded = true
             }
-        }
-        return catalogJob
+        }.also { catalogJob = it }
     }
 
     init {

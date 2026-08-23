@@ -394,7 +394,7 @@ fun SettingsScreen(
 private fun SettingsSection(title: String, content: @Composable () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
