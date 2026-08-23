@@ -46,6 +46,7 @@ import com.adgent.trader.core.common.Format
 import com.adgent.trader.core.common.NumberFormatMode
 import com.adgent.trader.core.work.WidgetUpdateWorker
 import com.adgent.trader.ui.theme.AdgentTraderTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -107,24 +108,46 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
 
     LaunchedEffect(appWidgetId) {
         val c = context.applicationContext
-        // Rileva il tipo di widget dagli id nativi (AppWidgetManager): gli id
-        // coincidono con quelli che Glance passa qui come EXTRA_APPWIDGET_ID.
-        val detected: WidgetKind? = runCatching {
-            val awm = AppWidgetManager.getInstance(c)
-            val tickerIds = awm.getAppWidgetIds(
-                ComponentName(c, TickerWidgetReceiver::class.java),
-            ) ?: intArrayOf()
-            val watchIds = awm.getAppWidgetIds(
-                ComponentName(c, WatchlistWidgetReceiver::class.java),
-            ) ?: intArrayOf()
-            when {
-                appWidgetId in tickerIds -> WidgetKind.TICKER
-                appWidgetId in watchIds -> WidgetKind.WATCHLIST
+
+        // Rilevamento del tipo widget. Metodo primario: getAppWidgetInfo() dal
+        // sistema (dice esattamente a quale provider appartiene l'id). Fallback:
+        // confronto con gli id già noti, più un retry: alcuni launcher non legano
+        // ancora l'id al provider mentre la schermata di configurazione si apre.
+        fun kindOf(id: Int): WidgetKind? = runCatching {
+            when (AppWidgetManager.getInstance(c).getAppWidgetInfo(id)?.provider?.className) {
+                TickerWidgetReceiver::class.java.name -> WidgetKind.TICKER
+                WatchlistWidgetReceiver::class.java.name -> WidgetKind.WATCHLIST
                 else -> null
             }
         }.getOrNull()
 
-        val loaded = WidgetConfigStore.load(c, detected ?: WidgetKind.TICKER, appWidgetId)
+        var detected: WidgetKind? = kindOf(appWidgetId)
+        if (detected == null) {
+            detected = runCatching {
+                val awm = AppWidgetManager.getInstance(c)
+                val tickerIds = awm.getAppWidgetIds(
+                    ComponentName(c, TickerWidgetReceiver::class.java),
+                ) ?: intArrayOf()
+                val watchIds = awm.getAppWidgetIds(
+                    ComponentName(c, WatchlistWidgetReceiver::class.java),
+                ) ?: intArrayOf()
+                when {
+                    appWidgetId in tickerIds -> WidgetKind.TICKER
+                    appWidgetId in watchIds -> WidgetKind.WATCHLIST
+                    else -> null
+                }
+            }.getOrNull()
+        }
+        for (i in 1..8) {
+            if (detected != null) break
+            delay(150)
+            detected = kindOf(appWidgetId)
+        }
+
+        // Mai un vicolo cieco: se proprio non rilevabile, si apre come Ticker
+        // (mostra comunque le opzioni; il salvataggio usa lo stesso tipo).
+        val resolvedKind = detected ?: WidgetKind.TICKER
+        val loaded = WidgetConfigStore.load(c, resolvedKind, appWidgetId)
         refreshMinutes = WidgetConfigStore.getRefreshMinutes(c)
         val available = runCatching {
             val container = c.appContainer
@@ -135,7 +158,7 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
             (favs + cachedPrices.keys).distinct().associateWith { cachedPrices[it] ?: 0.0 }
         }.getOrDefault(emptyMap())
 
-        kind = detected
+        kind = resolvedKind
         config = loaded
         symbols = available.entries.map { it.key to it.value }.sortedBy { it.first }
     }

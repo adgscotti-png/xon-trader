@@ -124,6 +124,7 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 @Composable
 fun SettingsScreen(
     vm: SettingsViewModel = appViewModel { SettingsViewModel(it) },
+    onOpenWidgetStatus: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -260,11 +261,10 @@ fun SettingsScreen(
         }
 
         // ---------- Modalità dati ----------
-        SettingsSection("Realtime alerts") {
+        SettingsSection("Price alerts") {
             Text(
-                "Realtime: notification in ~1 second, with a small persistent notification " +
-                    "keeping the connection alive. Battery saver: no persistent notification, " +
-                    "checks every 15 minutes.",
+                "How quickly price alerts arrive vs. how much battery the app uses. " +
+                    "Recommended: Battery saver for daily use.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -272,16 +272,20 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (current.dataMode == DataMode.REALTIME) "Realtime (recommended)"
-                        else "Battery saver",
+                        if (current.dataMode == DataMode.REALTIME)
+                            "Realtime · instant alerts, more battery"
+                        else
+                            "Battery saver · recommended",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         if (current.dataMode == DataMode.REALTIME)
-                            "Near-instant alerts, even with the app closed."
+                            "Notification in ~1 second even with the app closed. Higher battery " +
+                                "use: keeps a persistent connection and a small notification."
                         else
-                            "Alerts guaranteed within 15 minutes, zero background drain.",
+                            "Checks every 15 minutes: alerts arrive within 15 minutes, " +
+                                "near-zero battery impact, no persistent notification.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -327,6 +331,22 @@ fun SettingsScreen(
                         }
                     }
                 }
+            }
+        }
+
+        // ---------- Widget home screen ----------
+        SettingsSection("Home-screen widgets") {
+            Text(
+                "Widgets each keep their own settings (coin, text size, number " +
+                    "format). If a widget shows something unexpected, open the " +
+                    "status panel: it lists every widget with its saved config " +
+                    "and tells you which coin each one is set to show.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedButton(onClick = onOpenWidgetStatus) {
+                Text("Widget status…")
             }
         }
 

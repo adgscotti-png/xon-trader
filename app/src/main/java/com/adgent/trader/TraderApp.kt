@@ -74,7 +74,7 @@ class TraderApp : Application() {
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             val mode = runCatching {
                 container.settingsRepo.settings.first().dataMode
-            }.getOrDefault(DataMode.REALTIME)
+            }.getOrDefault(DataMode.SAVER)
             if (mode == DataMode.REALTIME) {
                 com.adgent.trader.core.service.PriceFeedController.start(this@TraderApp)
             }

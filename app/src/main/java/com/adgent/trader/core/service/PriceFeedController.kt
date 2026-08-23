@@ -25,7 +25,7 @@ object PriceFeedController {
 
     fun isRealtime(context: Context): Boolean = runBlocking {
         runCatching { context.appContainer.settingsRepo.settings.first().dataMode }
-            .getOrDefault(DataMode.REALTIME) == DataMode.REALTIME
+            .getOrDefault(DataMode.SAVER) == DataMode.REALTIME
     }
 
     fun start(context: Context) {

@@ -77,6 +77,14 @@ object WidgetConfigStore {
         runCatching { prefs(context).edit().remove(key(kind, appWidgetId)).apply() }
     }
 
+    /** True se questo widget ha una configurazione salvata (non i default). */
+    fun isConfigured(context: Context, kind: WidgetKind, appWidgetId: Int): Boolean =
+        prefs(context).contains(key(kind, appWidgetId))
+
+    /** Tutte le voci memorizzate, per la schermata di diagnostica widget. */
+    fun snapshot(context: Context): Map<String, String> =
+        prefs(context).all.mapNotNull { (k, v) -> (v as? String)?.let { k to it } }.toMap()
+
     private fun key(kind: WidgetKind, appWidgetId: Int) =
         "${kind.name.lowercase()}_$appWidgetId"
 

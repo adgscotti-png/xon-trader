@@ -86,7 +86,7 @@ enum class DataMode { REALTIME, SAVER }
 
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
-    val dataMode: DataMode = DataMode.REALTIME,
+    val dataMode: DataMode = DataMode.SAVER,
     /** Blocco app con biometria/PIN del dispositivo (F5). */
     val appLock: Boolean = false,
     val onboarded: Boolean = false,
@@ -101,7 +101,7 @@ class SettingsRepository(context: Context) {
             themeMode = p[KEY_THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
             dataMode = p[KEY_MODE]?.let { runCatching { DataMode.valueOf(it) }.getOrNull() }
-                ?: DataMode.REALTIME,
+                ?: DataMode.SAVER,
             onboarded = p[KEY_ONBOARDED] == "1",
             appLock = p[KEY_APP_LOCK] == "1",
         )

@@ -152,7 +152,12 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
                 )
             }
             composable("settings") {
-                SettingsScreen()
+                SettingsScreen(onOpenWidgetStatus = { navController.navigate("widgetDiagnostics") })
+            }
+            composable("widgetDiagnostics") {
+                com.adgent.trader.ui.widgets.WidgetDiagnosticsScreen(
+                    onClose = { navController.popBackStack() },
+                )
             }
             composable(
                 route = "coin/{symbol}",
