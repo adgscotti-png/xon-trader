@@ -197,6 +197,51 @@ fun SettingsScreen(
             }
         }
 
+        // ---------- Notifiche ----------
+        val notifState = com.adgent.trader.ui.notifications.rememberNotifPermissionState()
+        SettingsSection("Notifiche") {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (notifState.granted) "Permessi notifiche attivi"
+                        else "Permessi notifiche disattivati",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        if (notifState.granted)
+                            "Gli avvisi prezzo possono arrivare anche a app chiusa."
+                        else
+                            "⚠ Senza il permesso gli avvisi NON arrivano, nemmeno in modalità Realtime.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (!notifState.granted) {
+                    TextButton(onClick = notifState::ensure) { Text("Attiva") }
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = {
+                    val sent = notifState.sendTest(context)
+                    android.widget.Toast.makeText(
+                        context,
+                        when {
+                            sent -> "Notifica inviata: controlla il pannello"
+                            else -> "Notifiche bloccate: tocca \"Attiva\" o apri le impostazioni"
+                        },
+                        android.widget.Toast.LENGTH_LONG,
+                    ).show()
+                }) {
+                    Text("Invia notifica di prova")
+                }
+                OutlinedButton(onClick = { notifState.openSystemSettings() }) {
+                    Text("Impostazioni sistema")
+                }
+            }
+        }
+
         // ---------- Modalità dati ----------
         SettingsSection("Avvisi in tempo reale") {
             Text(

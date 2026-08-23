@@ -180,3 +180,34 @@ pubblici), F-Droid, Wear OS tile.
 ---
 *Fonti ricerca: play/apkpure/apkcombo listing, helpcenter tabtrader, stampa acquisizione
 (schede salvate in conversazione 22/08/2026). Screenshot: research/*.jpg*
+
+---
+
+## 8. Ondata F7 — fix feedback beta (23/08/2026)
+
+Test su device reale superato (debug **e** release: rischio R8 archiviato). Tre
+segnalazioni di Andrea, tre aree di intervento:
+
+### 1. Alert muti → permesso POST_NOTIFICATIONS
+**Causa #1**: da Android 13 il permesso notifiche va chiesto a runtime; senza,
+il sistema scarta ogni notifica in silenzio. Ora:
+- `ui/notifications/NotifPermission.kt` — stato permesso reattivo (si aggiorna a ogni resume), richiesta dialog + fallback impostazioni di sistema.
+- Banner di avviso in testa alla schermata Avvisi finché il permesso manca.
+- Richiesta contestuale al salvataggio del primo avviso e alla creazione dal grafico.
+- Impostazioni → sezione **Notifiche**: stato permesso + **notifica di prova** (`Notifications.notifyTest`, canale Test).
+
+### 2. Crash grafico su pan + gesture riscritte
+`detectTransformGestures` consumava tutti gli eventi in conflitto col pan/crosshair
+(crash su pan con pinch parallelo). Rewrite completo di `CandleChart.kt`:
+- gesture manuale `awaitEachGesture`: 1 dito = pan + crosshair, 2 dita = pinch zoom ancorato;
+- `ChartWindow.clamp()` — mai range di coercion vuoti (fonte del crash con serie corte);
+- **pressione prolungata (450ms, haptic)** → linea prezzo trascinabile → barra conferma Sopra/Sotto → avviso creato al volo dal grafico (`CoinDetailViewModel.quickAlert`, toast conferma);
+- rendering: etichette assi senza sovrapposizioni, fit barre sullo schermo, path sicuri su serie corte.
+
+### 3. Widget configurabili per istanza
+- `WidgetConfigActivity` (+ `android:configure` nei manifest widget): simbolo fisso o automatico (ticker), righe 3-6 (watchlist), dimensione testo 5 preset, formato numero Auto/Completo/Senza virgole/Approssimato, toggle variazione 24h e ora aggiornamento, intervallo refresh 15min→6h (WorkManager `UPDATE` senza resettare la finestra).
+- Pulsantino **↻ refresh immediato** sui widget (`WidgetRefreshAction`, bypass TTL).
+- Il worker valuta ora anche gli alert su dati REST freschi: rete di sicurezza se il servizio realtime è fermo (modalità Risparmio / killer OEM).
+- Cleanup config alla rimozione del widget (`onDeleted`).
+
+**Release 0.2.1** (versionCode 3).

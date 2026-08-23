@@ -113,6 +113,30 @@ object Notifications {
         }
     }
 
+    /**
+     * Notifica di prova per verificare dall'app che le notifiche arrivino.
+     * Ritorna false se il permesso manca (Android 13+ le scarta in silenzio).
+     */
+    fun notifyTest(context: Context): Boolean {
+        if (!canPost(context)) return false
+        val notification = NotificationCompat.Builder(context, CHANNEL_TEST)
+            .setSmallIcon(R.drawable.ic_stat_alert)
+            .setContentTitle("Notifica di prova")
+            .setContentText("Perfetto: gli avvisi prezzo arriveranno in questa forma.")
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .bigText("Perfetto: gli avvisi prezzo arriveranno in questa forma. " +
+                        "Se non la vedi, controlla le notifiche di sistema per ADGENT Trader."),
+            )
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setColor(0xFF4C3DFF.toInt())
+            .setAutoCancel(true)
+            .build()
+        return runCatching {
+            NotificationManagerCompat.from(context).notify(TEST_NOTIF_ID, notification)
+        }.isSuccess
+    }
+
     /** Notifica persistente discreta del servizio realtime. */
     fun serviceNotification(context: Context, text: String): android.app.Notification =
         NotificationCompat.Builder(context, CHANNEL_SERVICE)
@@ -138,4 +162,7 @@ object Notifications {
 
     /** Base degli ID notifica avviso: +ruleId. Pubblico per l'azione Disattiva. */
     const val ALERT_NOTIF_BASE_ID = 10_000
+
+    /** ID della notifica di prova (impostazioni). */
+    const val TEST_NOTIF_ID = 9_999
 }

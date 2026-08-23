@@ -1,5 +1,7 @@
 package com.adgent.trader.ui.widgets
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -10,13 +12,20 @@ import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
+import androidx.glance.Image
+import androidx.glance.ImageProvider
+import androidx.glance.action.ActionParameters
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.SizeMode
+import androidx.glance.appwidget.action.ActionCallback
+import androidx.glance.appwidget.action.actionRunCallback
 import androidx.glance.appwidget.action.actionStartActivity
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
+import androidx.glance.appwidget.updateAll
 import androidx.glance.background
 import androidx.glance.layout.Alignment
 import androidx.glance.layout.Box
@@ -32,9 +41,19 @@ import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
+import com.adgent.trader.R
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.common.NumberFormatMode
 import kotlinx.coroutines.flow.first
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
+/** Ora breve "14:32" per il footer dei widget. */
+private fun timeLabel(epochMs: Long): String =
+    if (epochMs <= 0) ""
+    else SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(epochMs))
 
 /** Riga dati pronta per il rendering dei widget. */
 data class WidgetRow(
@@ -61,6 +80,19 @@ suspend fun loadWidgetRows(context: Context, limit: Int = 6): List<WidgetRow> =
                 WidgetRow(sym, sym.removeSuffix("USDT"), t.price, t.changePercent24h)
             }
         }
+    }.getOrDefault(emptyList())
+
+/**
+ * Simboli impostati manualmente nei widget ticker: vanno inclusi nel refresh
+ * del worker, altrimenti un simbolo fuori dalla watchlist resterebbe fermo.
+ */
+suspend fun configuredTickerSymbols(context: Context): List<String> =
+    runCatching {
+        val awm = AppWidgetManager.getInstance(context)
+        val ids = awm.getAppWidgetIds(ComponentName(context, TickerWidgetReceiver::class.java))
+        ids.map { id ->
+            WidgetConfigStore.load(context, WidgetKind.TICKER, id).symbol
+        }.filter { it.isNotBlank() }
     }.getOrDefault(emptyList())
 
 // ---------- Colori e stili condivisi ----------
@@ -92,15 +124,39 @@ private fun openCoinAction(symbol: String) = actionStartActivity(
     },
 )
 
+/** Pulsante refresh immediato: scarica prezzi freschi e ridisegna i widget. */
+@Composable
+private fun RefreshButton() {
+    Image(
+        provider = ImageProvider(R.drawable.ic_widget_refresh),
+        contentDescription = "Aggiorna adesso",
+        modifier = GlanceModifier
+            .width(22.dp)
+            .height(22.dp)
+            .clickable(actionRunCallback<WidgetRefreshAction>()),
+    )
+}
+
 // ---------- Widget ticker 2×1 ----------
 
-/** Prezzo grande del primo strumento in lista (preferiti → top volume). */
+/**
+ * Prezzo grande di uno strumento: automatico (preferiti → volume) oppure
+ * fisso, con dimensione testo, formato numero e ora aggiornamento configurabili.
+ */
 class TickerWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val rows = loadWidgetRows(context, limit = 1)
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        val cfg = WidgetConfigStore.load(context, WidgetKind.TICKER, appWidgetId)
+        val rows = loadWidgetRows(context, limit = 30)
+        val row = cfg.symbol.takeIf { it.isNotBlank() }
+            ?.let { sym -> rows.firstOrNull { it.symbol == sym } ?: fetchRowFromCache(context, sym) }
+            ?: rows.firstOrNull()
+        val lastUpdate = WidgetConfigStore.lastUpdate(context)
+        val timeLabel = timeLabel(lastUpdate)
+
         provideContent {
             GlanceTheme {
                 Box(
@@ -110,27 +166,56 @@ class TickerWidget : GlanceAppWidget() {
                         .cornerRadius(14.dp)
                         .padding(10.dp),
                 ) {
-                    val r = rows.firstOrNull()
-                    if (r == null) {
+                    if (row == null) {
                         Text(
                             "Apri ADGENT Trader per caricare i dati",
                             style = dimStyle(11),
                         )
                     } else {
                         Row(
-                            modifier = GlanceModifier.fillMaxSize().clickable(openCoinAction(r.symbol)),
+                            modifier = GlanceModifier.fillMaxSize(),
                             verticalAlignment = Alignment.Vertical.CenterVertically,
                         ) {
-                            Column {
-                                Text(r.base, style = TextStyle(color = ColorProvider(TextDim), fontSize = 11.sp))
+                            Column(
+                                modifier = GlanceModifier.defaultWeight().clickable(openCoinAction(row.symbol)),
+                            ) {
+                                Text(
+                                    row.base,
+                                    style = TextStyle(color = ColorProvider(TextDim), fontSize = 11.sp),
+                                )
                                 Spacer(GlanceModifier.height(2.dp))
-                                Text("$" + Format.price(r.price), style = priceStyle(17))
+                                Text(
+                                    "$" + Format.price(row.price, cfg.numberFormat),
+                                    style = priceStyle(cfg.textSizeSp),
+                                    maxLines = 1,
+                                )
+                                Spacer(GlanceModifier.height(2.dp))
+                                Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+                                    if (cfg.showChange) {
+                                        Text(
+                                            Format.percent(row.changePercent24h),
+                                            style = TextStyle(
+                                                color = changeColor(row.changePercent24h),
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                            ),
+                                        )
+                                        if (cfg.showTimestamp && timeLabel.isNotBlank()) {
+                                            Spacer(GlanceModifier.width(6.dp))
+                                            Text("· $timeLabel", style = dimStyle(10))
+                                        }
+                                    } else if (cfg.showTimestamp && timeLabel.isNotBlank()) {
+                                        Text("agg. $timeLabel", style = dimStyle(10))
+                                    }
+                                }
                             }
-                            Spacer(GlanceModifier.defaultWeight())
-                            Text(
-                                Format.percent(r.changePercent24h),
-                                style = TextStyle(color = changeColor(r.changePercent24h), fontSize = 13.sp, fontWeight = FontWeight.Bold),
-                            )
+                            Spacer(GlanceModifier.width(8.dp))
+                            Box(
+                                modifier = GlanceModifier.background(CardColor).cornerRadius(12.dp),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                RefreshButton()
+                            }
                         }
                     }
                 }
@@ -141,17 +226,36 @@ class TickerWidget : GlanceAppWidget() {
 
 class TickerWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget = TickerWidget()
+
+    /** Widget rimosso: la sua configurazione non serve più. */
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { WidgetConfigStore.delete(context, WidgetKind.TICKER, it) }
+    }
 }
+
+/** Prezzo di un singolo simbolo direttamente dalla cache (per simboli configurati). */
+private suspend fun fetchRowFromCache(context: Context, symbol: String): WidgetRow? =
+    runCatching {
+        context.applicationContext.appContainer.tickerRepo
+            .observeCached(limit = 500).first()
+            .firstOrNull { it.symbol == symbol }
+            ?.let { WidgetRow(it.symbol, it.symbol.removeSuffix("USDT"), it.price, it.changePercent24h) }
+    }.getOrNull()
 
 // ---------- Widget watchlist 4×2 ----------
 
-/** Lista preferiti (fino a 5 righe) con prezzo e variazione 24h live-cache. */
+/** Lista preferiti (numero righe configurabile) con prezzo e variazione 24h. */
 class WatchlistWidget : GlanceAppWidget() {
 
     override val sizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
-        val rows = loadWidgetRows(context, limit = 5)
+        val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
+        val cfg = WidgetConfigStore.load(context, WidgetKind.WATCHLIST, appWidgetId)
+        val rows = loadWidgetRows(context, limit = cfg.rows.coerceIn(1, 8))
+        val lastUpdate = WidgetConfigStore.lastUpdate(context)
+        val timeLabel = timeLabel(lastUpdate)
+
         provideContent {
             GlanceTheme {
                 Column(
@@ -161,30 +265,65 @@ class WatchlistWidget : GlanceAppWidget() {
                         .cornerRadius(14.dp)
                         .padding(horizontal = 12.dp, vertical = 8.dp),
                 ) {
+                    // Header: titolo + refresh immediato.
+                    Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
+                        Text(
+                            "Preferiti",
+                            style = TextStyle(color = ColorProvider(TextDim), fontSize = 10.sp),
+                            modifier = GlanceModifier.defaultWeight(),
+                        )
+                        RefreshButton()
+                    }
+                    Spacer(GlanceModifier.height(4.dp))
+
                     if (rows.isEmpty()) {
                         Text("Apri ADGENT Trader per caricare i dati", style = dimStyle(11))
                     } else {
                         rows.forEachIndexed { i, r ->
-                            if (i > 0) Spacer(GlanceModifier.height(4.dp))
+                            if (i > 0) Spacer(GlanceModifier.height(3.dp))
                             Row(
                                 modifier = GlanceModifier
                                     .fillMaxWidth()
                                     .background(ColorProvider(CardColor))
                                     .cornerRadius(10.dp)
                                     .clickable(openCoinAction(r.symbol))
-                                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.Vertical.CenterVertically,
                             ) {
-                                Text(r.base, style = TextStyle(color = ColorProvider(TextMain), fontSize = 12.sp, fontWeight = FontWeight.Medium))
-                                Spacer(GlanceModifier.width(8.dp))
-                                Text("$" + Format.price(r.price), style = TextStyle(color = ColorProvider(TextDim), fontSize = 11.sp))
-                                Spacer(GlanceModifier.defaultWeight())
                                 Text(
-                                    Format.percent(r.changePercent24h),
-                                    style = TextStyle(color = changeColor(r.changePercent24h), fontSize = 12.sp, fontWeight = FontWeight.Bold),
+                                    r.base,
+                                    style = TextStyle(
+                                        color = ColorProvider(TextMain),
+                                        fontSize = cfg.textSizeSp.sp,
+                                        fontWeight = FontWeight.Medium,
+                                    ),
+                                    maxLines = 1,
                                 )
+                                Spacer(GlanceModifier.width(8.dp))
+                                Text(
+                                    "$" + Format.price(r.price, cfg.numberFormat),
+                                    style = TextStyle(color = ColorProvider(TextDim), fontSize = cfg.textSizeSp.sp),
+                                    maxLines = 1,
+                                )
+                                Spacer(GlanceModifier.defaultWeight())
+                                if (cfg.showChange) {
+                                    Text(
+                                        Format.percent(r.changePercent24h),
+                                        style = TextStyle(
+                                            color = changeColor(r.changePercent24h),
+                                            fontSize = cfg.textSizeSp.sp,
+                                            fontWeight = FontWeight.Bold,
+                                        ),
+                                        maxLines = 1,
+                                    )
+                                }
                             }
                         }
+                    }
+
+                    if (cfg.showTimestamp && timeLabel.isNotBlank()) {
+                        Spacer(GlanceModifier.height(3.dp))
+                        Text("Aggiornato alle $timeLabel", style = dimStyle(9))
                     }
                 }
             }
@@ -194,4 +333,35 @@ class WatchlistWidget : GlanceAppWidget() {
 
 class WatchlistWidgetReceiver : GlanceAppWidgetReceiver() {
     override val glanceAppWidget = WatchlistWidget()
+
+    /** Widget rimosso: la sua configurazione non serve più. */
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        appWidgetIds.forEach { WidgetConfigStore.delete(context, WidgetKind.WATCHLIST, it) }
+    }
+}
+
+// ---------- Azioni ----------
+
+/**
+ * Refresh immediato scatenato dal pulsantino ↻ del widget: scarica i prezzi
+ * (forza, bypass TTL), aggiorna il timestamp visibile e ridisegna.
+ */
+class WidgetRefreshAction : ActionCallback {
+    override suspend fun onAction(
+        context: Context,
+        glanceId: GlanceId,
+        parameters: ActionParameters,
+    ) {
+        val ctx = context.applicationContext
+        runCatching {
+            val container = ctx.appContainer
+            val symbols = (container.watchlistRepo.all().map { it.symbol } +
+                configuredTickerSymbols(ctx)).distinct()
+                .ifEmpty { listOf("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT") }
+            container.tickerRepo.refreshTickers(symbols, force = true)
+        }
+        WidgetConfigStore.stampUpdate(ctx)
+        runCatching { TickerWidget().updateAll(ctx) }
+        runCatching { WatchlistWidget().updateAll(ctx) }
+    }
 }

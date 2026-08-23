@@ -171,6 +171,7 @@ fun AlertEditScreen(
 ) {
     val context = LocalContext.current
     val state by vm.state.collectAsStateWithLifecycle()
+    val notifState = com.adgent.trader.ui.notifications.rememberNotifPermissionState()
     LaunchedEffect(state.saved) { if (state.saved) onClose() }
 
     Column(
@@ -310,7 +311,12 @@ fun AlertEditScreen(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Button(
-                onClick = { vm.save(context) },
+                onClick = {
+                    vm.save(context)
+                    // Il permesso notifiche è ciò che rende l'avviso utile: lo chiediamo
+                    // nel momento in cui l'utente crea davvero il primo avviso.
+                    notifState.ensure()
+                },
                 enabled = state.canSave,
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.White),
                 modifier = Modifier.weight(1f),

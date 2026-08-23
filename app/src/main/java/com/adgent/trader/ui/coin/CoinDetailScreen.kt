@@ -68,8 +68,18 @@ fun CoinDetailScreen(
     vm: CoinDetailViewModel = appViewModel(key = "coin-$symbol") { CoinDetailViewModel(it, symbol) },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val notifState = com.adgent.trader.ui.notifications.rememberNotifPermissionState()
     var favorite by remember { mutableStateOf(false) }
     LaunchedEffect(symbol) { favorite = vm.isFavorite() }
+
+    // Toast one-shot quando un avviso viene creato direttamente dal grafico.
+    LaunchedEffect(state.quickAlertMsg) {
+        state.quickAlertMsg?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+            vm.clearQuickAlertMsg()
+        }
+    }
 
     val base = symbol.removeSuffix("USDT")
 
@@ -167,6 +177,11 @@ fun CoinDetailScreen(
                             showEma = state.showEma,
                             showBb = state.showBb,
                             livePrice = state.livePrice,
+                            onCreateAlertAtPrice = { price, above ->
+                                vm.quickAlert(price, above)
+                                // Senza permesso notifiche l'avviso non suonerebbe mai.
+                                if (!notifState.granted) notifState.ensure()
+                            },
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

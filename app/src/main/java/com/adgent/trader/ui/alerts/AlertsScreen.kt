@@ -86,8 +86,15 @@ fun AlertsScreen(
     vm: AlertsViewModel = appViewModel { AlertsViewModel(it) },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val notifState = com.adgent.trader.ui.notifications.rememberNotifPermissionState()
 
     Column(Modifier.fillMaxSize().statusBarsPadding()) {
+        if (!notifState.granted) {
+            NotifWarningBanner(
+                onEnable = { notifState.ensure() },
+                onOpenSettings = { notifState.openSystemSettings() },
+            )
+        }
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -125,6 +132,50 @@ fun AlertsScreen(
                 }
                 item { Spacer(Modifier.height(96.dp)) }
             }
+        }
+    }
+}
+
+/**
+ * Banner quando il permesso notifiche manca: da Android 13 il sistema scarta
+ * ogni avviso in silenzio, quindi senza questo consenso gli alert non arrivano.
+ */
+@Composable
+private fun NotifWarningBanner(
+    onEnable: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(14.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 10.dp),
+        ) {
+            Icon(
+                Icons.Outlined.NotificationsActive,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.error,
+            )
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Notifiche disattivate",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    "Senza il permesso gli avvisi non possono arrivare.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            TextButton(onClick = onEnable) { Text("Attiva") }
+            TextButton(onClick = onOpenSettings) { Text("Impostazioni") }
         }
     }
 }

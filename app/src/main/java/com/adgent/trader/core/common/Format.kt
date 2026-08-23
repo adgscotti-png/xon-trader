@@ -7,6 +7,17 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 /**
+ * Stile di formattazione del prezzo selezionabile (widget): da quello adattivo
+ * alle versioni compatte pensate per testo grande con poche informazioni.
+ */
+enum class NumberFormatMode(val label: String, val example: String) {
+    AUTO("Auto", "97.400,12"),
+    FULL("Completo", "97.400,12"),
+    PLAIN("Senza virgole", "97400"),
+    COMPACT("Approssimato", "97,4k"),
+}
+
+/**
  * Formattazione numerica professionale per prezzi crypto:
  * cifre significative adattive, separatori localizzati, tabular figures a livello UI.
  */
@@ -19,6 +30,36 @@ object Format {
         v >= 1_000 -> group(v, 2)
         v >= 1 -> group(v, if (v >= 100) 2 else 4)
         else -> significant(v, 6)
+    }
+
+    /** Prezzo nello stile scelto dall'utente (usato dai widget home screen). */
+    fun price(v: Double, mode: NumberFormatMode): String = when (mode) {
+        NumberFormatMode.AUTO -> price(v)
+        NumberFormatMode.FULL -> when {
+            v <= 0.0 -> "—"
+            v >= 1 -> group(v, 2)
+            else -> significant(v, 6)
+        }
+        NumberFormatMode.PLAIN -> when {
+            v <= 0.0 -> "—"
+            v >= 1_000 -> group(v, 0).replace(".", "")
+            v >= 1 -> group(v, 2).replace(".", "").replace(",", ".")
+            else -> significant(v, 6).replace(".", "").replace(",", ".")
+        }
+        NumberFormatMode.COMPACT -> compactShort(v)
+    }
+
+    /** Compatto breve per testi grandi: 97,4k · 1,2M · 345 · 0,000012 */
+    private fun compactShort(v: Double): String {
+        if (v <= 0) return "—"
+        return if (v >= 1000) {
+            val exp = (ln(v) / ln(1000.0)).toInt().coerceIn(1, 3)
+            val scaled = v / 1000.0.pow(exp)
+            val suffix = listOf("", "k", "M", "B")[exp]
+            group(scaled, if (scaled >= 100) 0 else 1) + suffix
+        } else {
+            significant(v, 4)
+        }
     }
 
     fun percent(v: Double): String =

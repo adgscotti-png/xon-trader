@@ -22,3 +22,6 @@ captures/
 
 # Keystore release: MAI committare (backup manuale responsabilità Andrea)
 keystore/
+
+# Session dir Kotlin 2.x (artefatto locale)
+.kotlin/

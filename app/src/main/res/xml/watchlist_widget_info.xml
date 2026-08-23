@@ -4,6 +4,7 @@
     android:minHeight="110dp"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget_stub"
+    android:configure="com.adgent.trader.ui.widgets.WidgetConfigActivity"
     android:resizeMode="horizontal|vertical"
     android:description="@string/widget_watchlist_desc"
     android:targetCellWidth="4"

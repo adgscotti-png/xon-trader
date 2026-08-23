@@ -3,12 +3,18 @@ package com.adgent.trader.ui.coin
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
+import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.database.AlertRuleEntity
+import com.adgent.trader.core.model.AlertType
 import com.adgent.trader.core.model.Kline
 import com.adgent.trader.core.model.Timeframe
+import com.adgent.trader.core.service.PriceFeedController
+import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.chart.ChartMode
 import com.adgent.trader.ui.chart.OscKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -30,6 +36,8 @@ data class CoinDetailUiState(
     val quoteVolume24h: Double? = null,
     val loading: Boolean = true,
     val offline: Boolean = false,
+    /** Messaggio one-shot per la UI (avviso creato dal grafico). */
+    val quickAlertMsg: String? = null,
 )
 
 class CoinDetailViewModel(
@@ -97,6 +105,44 @@ class CoinDetailViewModel(
     enum class OverlayKind { MA, EMA, BB }
 
     fun retry() = loadTimeframe(_state.value.timeframe)
+
+    /**
+     * Avviso creato direttamente dal grafico (pressione prolungata): salva la
+     * regola al prezzo scelto, garantisce il feed realtime attivo e notifica la UI.
+     */
+    fun quickAlert(price: Double, above: Boolean) {
+        viewModelScope.launch {
+            val type = if (above) AlertType.PRICE_ABOVE else AlertType.PRICE_BELOW
+            container.alertRepo.save(
+                AlertRuleEntity(
+                    id = 0L,
+                    symbol = symbol,
+                    type = type.name,
+                    threshold = price,
+                    repeatable = false,
+                    note = "Dal grafico",
+                    enabled = true,
+                    createdAt = System.currentTimeMillis(),
+                    lastTriggeredAt = null,
+                ),
+            )
+            val realtime = runCatching {
+                container.settingsRepo.settings.first().dataMode
+            }.getOrDefault(DataMode.REALTIME) == DataMode.REALTIME
+            if (realtime) {
+                PriceFeedController.start(container.appContext)
+            }
+            _state.update {
+                it.copy(
+                    quickAlertMsg = "Avviso creato: ${symbol.removeSuffix("USDT")} " +
+                        (if (above) "sopra" else "sotto") + " $" + Format.price(price),
+                )
+            }
+        }
+    }
+
+    /** Messaggio toast consumato dalla UI. */
+    fun clearQuickAlertMsg() = _state.update { it.copy(quickAlertMsg = null) }
 
     fun toggleFavorite() {
         viewModelScope.launch {

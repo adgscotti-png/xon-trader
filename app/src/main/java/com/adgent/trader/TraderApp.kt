@@ -27,6 +27,9 @@ import java.util.concurrent.TimeUnit
  * nessun processor di annotazioni oltre a Room/KSP.
  */
 class AppContainer(app: Application) {
+    /** Context applicativo per avviare servizi (feed realtime) dal ViewModel. */
+    val appContext: Context = app
+
     val appScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val okHttp: OkHttpClient = OkHttpClient.Builder()

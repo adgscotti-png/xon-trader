@@ -58,6 +58,16 @@
             android:exported="false" />
 
         <!-- Widget home screen (F4) -->
+        <!-- Configurazione per-istanza: simbolo, testo, formato numeri, refresh. -->
+        <activity
+            android:name=".ui.widgets.WidgetConfigActivity"
+            android:exported="true"
+            android:theme="@style/Theme.AdgentTrader">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
+
         <receiver
             android:name=".ui.widgets.TickerWidgetReceiver"
             android:exported="false"
