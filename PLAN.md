@@ -258,3 +258,43 @@ Cinque segnalazioni di Andrea su 0.2.1, tutte affrontate in un'unica ondata.
   tap-pava a (300,1560)/(800,1560) mancando i bottoni (falso "export rotto").
 
 **Release 0.2.2** (versionCode 4).
+
+## 10. Ondata UI CARD GRID — grafica a caselle (23/08/2026)
+
+Su richiesta di Andrea con reference in `research/ui-ref/` (TabTrader-1.jpg:
+griglia 2-per-riga; WhatsApp: scheda grafico più pulita). Solo presentazione:
+ViewModels, dati, navigazione e interazioni invariati.
+
+### 1. Mercati: lista → griglia di card 2-per-riga
+- `LazyColumn` → `LazyVerticalGrid(GridCells.Fixed(2))`. Ogni card (Surface
+  surfaceContainerLow, raggio 18dp, h 150dp): badge moneta 34dp, nome+simbolo
+  (stella dorata se preferito), sparkline, prezzo 17sp, badge variazione %,
+  mini-stat in fondo: **24h H** (verde) / **24h L** (rosso) / **Vol**.
+- Interazioni identiche: tap → dettaglio, long-press → toggle preferito.
+- Ricerca → stessa griglia con **toggle stella esplicito** in alto a destra
+  (come la vecchia riga di ricerca, comportamento preservato).
+
+### 2. Dettaglio coin: scheda grafico più pulita
+- Prezzo + badge variazione spostati DENTRO la card del grafico (header).
+- Sostituita la griglia di 3 mini-card con **una card "24h statistics"**:
+  barra range High/Low con marker bianco del prezzo corrente (gradiente brand)
+  + volume 24h compatto. Tutti i dati già nello state (high/low/vol/price).
+- Grafico 320→300dp per far respirare le card sotto.
+
+### 3. Avvisi / Impostazioni / Tema
+- Avvisi: badge moneta (CoinBadge) al posto della campanella; raggio 16dp.
+- Impostazioni: sezioni-card raggio 18dp (allineate).
+- Tema dark: ramp superfici AMOLED esplicita (surfaceContainerLow→Highest).
+
+### 4. Fix compile latente
+`MarketsViewModel.ensureCatalog()` ritornava `catalogJob` (var privata) come
+`Job`: con compilazione incrementale passava, a compile pulito falliva
+(smart-cast non applicabile). Ora `return viewModelScope.launch{...}.also{ catalogJob = it }`.
+
+**Verifica E2E emulatore (23/08, 0.2.3)**: 11 shot, no FATAL, app viva.
+Griglia ✓ scroll ✓ ricerca+stella ✓ grafico+stats ✓ alerts ✓ settings ✓
+long-press preferito ✓ toggle stella ricerca ✓. Script: `scripts/emu-verify-023.sh`
+(+ `scripts/emu-check-fav.sh` per le interazioni preferito). Coordinate card
+prima riga ≈ (276,506); nav bar: alerts (540,2330), settings (900,2330).
+
+**Release 0.2.3** (versionCode 5), stesso cert (upgrade in-place).
