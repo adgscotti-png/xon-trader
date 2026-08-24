@@ -27,6 +27,8 @@ enum class MarketFilter(val label: String) {
 
 data class MarketsUiState(
     val rows: List<MarketRow> = emptyList(),
+    /** Righe Favorites: la watchlist risolta sul provider EFFETTIVO per coppia. */
+    val favRows: List<MarketRow> = emptyList(),
     val provider: ProviderSelection = ProviderSelection.AUTO,
     val filter: MarketFilter = MarketFilter.TOP,
     val query: String = "",
@@ -53,6 +55,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     private val watchlistRepo = container.watchlistRepo
     private val registry = container.providerRegistry
     private val settingsRepo = container.settingsRepo
+    private val router = container.autoProviderRouter
 
     private val _state = MutableStateFlow(MarketsUiState())
     val state = _state.asStateFlow()
@@ -88,8 +91,49 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                     ) { cached, favs, _ -> buildRows(cached, favs, sel) }
                 }
                 .collect { rows ->
-                    _state.update { it.copy(rows = applyFilter(rows, it.filter), loading = false) }
+                    _state.update { it.copy(rows = applyFilter(rows, it.filter, it.favRows), loading = false) }
                 }
+        }
+
+        // Righe Favorites: la watchlist risolta sul provider EFFETTIVO (override
+        // per-coin → default → priorità), così badge/live/tap seguono la scelta
+        // fatta nel coin detail anche se la coppia è archiviata sotto Binance.
+        scope.launch {
+            combine(
+                watchlistRepo.observe(),
+                settingsRepo.settings,
+                registry.health,
+                marketDataRepo.observeCached(null, 1_000),
+                marketDataRepo.liveVersion(),
+            ) { favs, settings, health, cached, _ ->
+                Triple(favs, settings, health) to cached.associateBy { "${it.provider}:${it.symbol}" }
+            }.collect { (ctx, byKey) ->
+                val (favs, settings, health) = ctx
+                val rows = favs.mapNotNull { fav ->
+                    val stored = ProviderId.fromName(fav.provider) ?: ProviderId.BINANCE
+                    val pair = marketDataRepo.fromCompact(fav.symbol) ?: return@mapNotNull null
+                    val eff = router.resolve(pair, settings.perCoinProviders, settings.defaultProvider.providerId, health)
+                    val effCache = byKey["${eff.name}:${fav.symbol}"]
+                    val storedCache = byKey["${stored.name}:${fav.symbol}"]
+                    val c = effCache ?: storedCache
+                    val rowProvider = if (effCache != null) eff else if (c != null) stored else eff
+                    val live = marketDataRepo.liveTick(rowProvider, fav.symbol)
+                    MarketRow(
+                        symbol = fav.symbol,
+                        base = bases[fav.symbol] ?: pair.base,
+                        price = live?.price ?: c?.price ?: 0.0,
+                        changePercent24h = live?.changePercent24h ?: c?.changePercent24h ?: 0.0,
+                        high24h = live?.high24h ?: c?.high24h ?: 0.0,
+                        low24h = live?.low24h ?: c?.low24h ?: 0.0,
+                        quoteVolume24h = live?.quoteVolume24h ?: c?.quoteVolume24h ?: 0.0,
+                        sparkline = c?.sparkline?.split(",")?.mapNotNull { s -> s.toDoubleOrNull() } ?: emptyList(),
+                        isFavorite = true,
+                        provider = rowProvider,
+                        storedProvider = stored,
+                    )
+                }
+                _state.update { it.copy(favRows = rows) }
+            }
         }
 
         // Sorgenti live per il badge (provider delle coppie in watchlist).
@@ -215,6 +259,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
         return cached.mapNotNull { c ->
             val provider = ProviderId.fromName(c.provider) ?: ProviderId.BINANCE
             val liveTick = marketDataRepo.liveTick(provider, c.symbol)
+            val isFavorite = "${c.provider}:${c.symbol}" in favKeys
             MarketRow(
                 symbol = c.symbol,
                 base = bases[c.symbol]
@@ -226,14 +271,19 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                 low24h = liveTick?.low24h ?: c.low24h,
                 quoteVolume24h = liveTick?.quoteVolume24h ?: c.quoteVolume24h,
                 sparkline = c.sparkline.split(",").mapNotNull { s -> s.toDoubleOrNull() },
-                isFavorite = "${c.provider}:${c.symbol}" in favKeys,
+                isFavorite = isFavorite,
                 provider = provider,
+                storedProvider = if (isFavorite) provider else null,
             )
         }
     }
 
-    private fun applyFilter(rows: List<MarketRow>, filter: MarketFilter): List<MarketRow> = when (filter) {
-        MarketFilter.FAVORITES -> rows.filter { it.isFavorite }
+    private fun applyFilter(
+        rows: List<MarketRow>,
+        filter: MarketFilter,
+        favRows: List<MarketRow>,
+    ): List<MarketRow> = when (filter) {
+        MarketFilter.FAVORITES -> favRows
         MarketFilter.TOP -> rows.sortedByDescending { it.quoteVolume24h }
         MarketFilter.GAINERS -> rows.filter { it.quoteVolume24h > 1_000_000 }
             .sortedByDescending { it.changePercent24h }
@@ -242,7 +292,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }.take(MAX_ROWS)
 
     fun setFilter(filter: MarketFilter) {
-        _state.update { it.copy(filter = filter, rows = applyFilter(it.rows, filter)) }
+        _state.update { it.copy(filter = filter, rows = applyFilter(it.rows, filter, it.favRows)) }
     }
 
     fun setSearching(active: Boolean) {
@@ -295,6 +345,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                     searchResults = ranked.map { s ->
                         fresh[s.symbol]?.let { c ->
                             val liveTick = marketDataRepo.liveTick(pid, c.symbol)
+                            val isFav = "${pid.name}:${c.symbol}" in favKeys
                             MarketRow(
                                 symbol = c.symbol,
                                 base = bases[c.symbol] ?: s.base,
@@ -304,8 +355,9 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                                 low24h = liveTick?.low24h ?: c.low24h,
                                 quoteVolume24h = liveTick?.quoteVolume24h ?: c.quoteVolume24h,
                                 sparkline = c.sparkline.split(",").mapNotNull { v -> v.toDoubleOrNull() },
-                                isFavorite = "${pid.name}:${c.symbol}" in favKeys,
+                                isFavorite = isFav,
                                 provider = pid,
+                                storedProvider = if (isFav) pid else null,
                             )
                         // Nessun dato raggiungibile: riga comunque presente, prezzo "—".
                         } ?: MarketRow(
@@ -314,6 +366,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                             quoteVolume24h = 0.0, sparkline = emptyList(),
                             isFavorite = "${pid.name}:${s.symbol}" in favKeys,
                             provider = pid,
+                            storedProvider = if ("${pid.name}:${s.symbol}" in favKeys) pid else null,
                         )
                     },
                 )
@@ -323,8 +376,11 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
 
     fun toggleFavorite(row: MarketRow) {
         viewModelScope.launch {
-            if (watchlistRepo.contains(row.provider, row.symbol)) {
-                watchlistRepo.remove(row.provider, row.symbol)
+            // Rimozione sul provider ARCHIVIATO (il row.provider può essere
+            // quello effettivo risolto, es. override per-coin su Bybit).
+            val stored = row.storedProvider ?: row.provider
+            if (watchlistRepo.contains(stored, row.symbol)) {
+                watchlistRepo.remove(stored, row.symbol)
             } else {
                 val ok = watchlistRepo.add(row.provider, row.symbol)
                 if (!ok) {

@@ -31,6 +31,9 @@ data class MarketRow(
     val sparkline: List<Double>,
     val isFavorite: Boolean,
     val provider: ProviderId,
+    /** Provider sotto cui la coppia è ARCHIVIATA in watchlist (per la rimozione
+     *  quando `provider` è quello effettivo risolto, es. override per-coin). */
+    val storedProvider: ProviderId? = null,
 )
 
 /**
