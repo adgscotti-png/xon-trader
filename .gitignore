@@ -28,3 +28,6 @@ keystore/
 
 # Screenshot di verifica E2E (rigenerabili, appesantiscono il repo)
 shots/
+
+# Asset APK di release (pubblicati su GitHub Releases)
+release/
