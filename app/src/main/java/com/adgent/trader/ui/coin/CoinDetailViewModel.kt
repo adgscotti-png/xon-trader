@@ -8,6 +8,7 @@ import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.model.AlertType
 import com.adgent.trader.core.model.Kline
 import com.adgent.trader.core.model.Timeframe
+import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.core.service.PriceFeedController
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.chart.ChartMode
@@ -20,6 +21,11 @@ import kotlinx.coroutines.launch
 
 data class CoinDetailUiState(
     val symbol: String = "",
+    val provider: ProviderId = ProviderId.BINANCE,
+    /** Nome base mostrato (alias risolti: XBT→BTC). */
+    val base: String = "",
+    /** Quote mostrata (es. USDT per Binance, USD per Kraken). */
+    val quote: String = "USDT",
     val klines: List<Kline> = emptyList(),
     val timeframe: Timeframe = Timeframe.DEFAULT,
     val chartMode: ChartMode = ChartMode.CANDLES,
@@ -27,7 +33,7 @@ data class CoinDetailUiState(
     val showEma: Boolean = false,
     val showBb: Boolean = false,
     /** Sub-chart oscillatore attivo (null = nessuno). */
-    val oscillator: com.adgent.trader.ui.chart.OscKind? = null,
+    val oscillator: OscKind? = null,
     val livePrice: Double? = null,
     /** Statistiche 24h dal tick live (fallback cache via refreshTickers del mercati). */
     val changePercent24h: Double? = null,
@@ -40,25 +46,47 @@ data class CoinDetailUiState(
     val quickAlertMsg: String? = null,
 )
 
+/**
+ * Dettaglio di una coin su un exchange specifico. Il live (watchlist) e il
+ * grafico sono provider-aware; il picker "Source" cambia il provider per-coin
+ * (override salvato nelle impostazioni → il router lo userà anche in Auto).
+ */
 class CoinDetailViewModel(
     private val container: AppContainer,
     private val symbol: String,
+    providerName: String,
 ) : ViewModel() {
 
-    private val tickerRepo = container.tickerRepo
+    /** Provider di partenza (dalla navigazione; default Binance per i deep link legacy). */
+    val provider: ProviderId = ProviderId.fromName(providerName) ?: ProviderId.BINANCE
+
+    /** Provider disponibili per il picker, ordinati per priorità. */
+    val enabledProviders: List<ProviderId> =
+        container.providerRegistry.enabledIds().sortedBy { it.defaultPriority }
+
+    private val marketDataRepo = container.marketDataRepo
     private val chartRepo = container.chartRepo
     private val watchlistRepo = container.watchlistRepo
+    private val settingsRepo = container.settingsRepo
 
-    private val _state = MutableStateFlow(CoinDetailUiState(symbol = symbol))
+    /** Coppia canonica stabile (non cambia con lo switch provider). */
+    private val canonicalPair = marketDataRepo.canonicalOf(provider, symbol)
+
+    private val _state = MutableStateFlow(
+        CoinDetailUiState(
+            symbol = symbol,
+            provider = provider,
+            base = canonicalPair?.base ?: symbol.removeSuffix("USDT"),
+            quote = canonicalPair?.quote ?: "USDT",
+        )
+    )
     val state = _state.asStateFlow()
 
     init {
-        tickerRepo.ensureLive()
-
-        // Prezzo live + stats 24h dal flusso WS.
+        // Prezzo live + stats 24h dal flusso del live hub (watchlist).
         viewModelScope.launch {
-            tickerRepo.liveVersion.collect {
-                tickerRepo.liveTick(symbol)?.let { t ->
+            marketDataRepo.liveVersion().collect {
+                marketDataRepo.liveTick(provider, symbol)?.let { t ->
                     _state.update { s ->
                         s.copy(
                             livePrice = t.price,
@@ -75,7 +103,44 @@ class CoinDetailViewModel(
         loadTimeframe(Timeframe.DEFAULT, initial = true)
         // Fallback REST per le statistiche se il WS non è ancora arrivato.
         viewModelScope.launch {
-            tickerRepo.refreshTickers(listOf(symbol), force = true)
+            marketDataRepo.refreshTickers(provider, listOf(symbol), force = true)
+        }
+    }
+
+    /** Cambia la fonte per-coin: salva l'override e ricarica grafico + stats. */
+    fun setProvider(newProvider: ProviderId) {
+        if (newProvider == _state.value.provider) return
+        viewModelScope.launch {
+            val newSymbol = canonicalPair?.let { marketDataRepo.providerSymbol(newProvider, it) }
+            if (canonicalPair != null && newSymbol == null) {
+                // L'exchange non lista questa coppia (es. Kraken non ha USDT):
+                // niente switch, niente override, solo un messaggio chiaro.
+                _state.update {
+                    it.copy(quickAlertMsg = "${newProvider.label} does not list ${canonicalPair!!.key}")
+                }
+                return@launch
+            }
+            if (canonicalPair != null) {
+                settingsRepo.setPerCoinProvider(canonicalPair.key, newProvider)
+            }
+            val resolved = newSymbol ?: symbol
+            _state.update { s ->
+                s.copy(
+                    provider = newProvider,
+                    symbol = resolved,
+                    base = canonicalPair?.base ?: s.base,
+                    quote = canonicalPair?.quote ?: s.quote,
+                    loading = true,
+                    klines = emptyList(),
+                    livePrice = null,
+                    changePercent24h = null,
+                    high24h = null,
+                    low24h = null,
+                    quoteVolume24h = null,
+                )
+            }
+            loadTimeframe(_state.value.timeframe, initial = true)
+            marketDataRepo.refreshTickers(newProvider, listOf(resolved), force = true)
         }
     }
 
@@ -108,7 +173,8 @@ class CoinDetailViewModel(
 
     /**
      * Avviso creato direttamente dal grafico (pressione prolungata): salva la
-     * regola al prezzo scelto, garantisce il feed realtime attivo e notifica la UI.
+     * regola al prezzo scelto (con il provider della coin), garantisce il feed
+     * realtime attivo e notifica la UI.
      */
     fun quickAlert(price: Double, above: Boolean) {
         viewModelScope.launch {
@@ -124,6 +190,7 @@ class CoinDetailViewModel(
                     enabled = true,
                     createdAt = System.currentTimeMillis(),
                     lastTriggeredAt = null,
+                    provider = provider.name,
                 ),
             )
             val realtime = runCatching {
@@ -134,7 +201,7 @@ class CoinDetailViewModel(
             }
             _state.update {
                 it.copy(
-                    quickAlertMsg = "Alert created: ${symbol.removeSuffix("USDT")} " +
+                    quickAlertMsg = "Alert created: ${it.base} " +
                         (if (above) "above" else "below") + " $" + Format.price(price),
                 )
             }
@@ -146,22 +213,27 @@ class CoinDetailViewModel(
 
     fun toggleFavorite() {
         viewModelScope.launch {
-            if (watchlistRepo.contains(symbol)) watchlistRepo.remove(symbol)
-            else watchlistRepo.add(symbol)
+            if (watchlistRepo.contains(provider, symbol)) {
+                watchlistRepo.remove(provider, symbol)
+            } else {
+                watchlistRepo.add(provider, symbol)
+            }
         }
     }
 
     suspend fun isFavorite(): Boolean =
-        runCatching { watchlistRepo.contains(symbol) }.getOrDefault(false)
+        runCatching { watchlistRepo.contains(provider, symbol) }.getOrDefault(false)
 
     private fun loadTimeframe(tf: Timeframe, initial: Boolean = false) {
         viewModelScope.launch {
+            val p = _state.value.provider
+            val s = _state.value.symbol
             // Prima la cache (istantaneo), poi il refresh di rete.
-            val cached = runCatching { chartRepo.cached(symbol, tf) }.getOrDefault(emptyList())
+            val cached = runCatching { chartRepo.cached(p, s, tf) }.getOrDefault(emptyList())
             if (cached.isNotEmpty()) {
                 _state.update { it.copy(klines = cached, loading = false) }
             }
-            val refreshed = chartRepo.refresh(symbol, tf)
+            val refreshed = chartRepo.refresh(p, s, tf)
             if (refreshed.isSuccess && refreshed.getOrThrow().isNotEmpty()) {
                 _state.update { it.copy(klines = refreshed.getOrThrow(), loading = false, offline = false) }
             } else if (cached.isEmpty()) {

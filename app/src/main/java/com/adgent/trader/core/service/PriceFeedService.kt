@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.IBinder
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.notifications.Notifications
+import com.adgent.trader.core.provider.ProviderId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,9 +14,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
 /**
- * Servizio foreground "Realtime": mantiene il WebSocket Binance attivo anche
- * con l'app in background e valuta le regole avviso sui tick ricevuti.
- * Notifica persistente discreta (canale "Feed realtime", importanza MIN).
+ * Servizio foreground "Realtime": mantiene attivi gli stream live della
+ * watchlist anche con l'app in background e valuta le regole avviso sui tick
+ * ricevuti (provider della regola). Notifica persistente discreta (canale
+ * "Feed realtime", importanza MIN).
  */
 class PriceFeedService : Service() {
 
@@ -41,27 +43,26 @@ class PriceFeedService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        val ws = runCatching { appContainer.ws }.getOrNull()
-        ws?.disconnect()
+        runCatching { appContainer.priceFeedHub.setForeground(false) }
         scope.cancel()
         super.onDestroy()
     }
 
     private fun observeAndEvaluate() {
         val container = appContainer
-        container.tickerRepo.ensureLive()
 
         // Ogni volta che cambiano le regole o arrivano tick, rivaluta le regole attive.
         scope.launch {
             combine(
                 container.alertRepo.observeAll(),
-                container.tickerRepo.liveVersion,
+                container.marketDataRepo.liveVersion(),
             ) { rules, _ ->
                 val enabled = rules.filter { it.enabled }
                 if (enabled.isEmpty()) return@combine
                 val now = System.currentTimeMillis()
                 enabled.forEach { rule ->
-                    val tick = container.tickerRepo.liveTick(rule.symbol) ?: return@forEach
+                    val provider = ProviderId.fromName(rule.provider) ?: ProviderId.BINANCE
+                    val tick = container.marketDataRepo.liveTick(provider, rule.symbol) ?: return@forEach
                     when (AlertEngine.evaluate(rule, tick, now)) {
                         AlertEngine.Verdict.SKIP -> Unit
                         AlertEngine.Verdict.FIRE_ONCE -> {

@@ -3,7 +3,7 @@ package com.adgent.trader.core.service
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
-import com.adgent.trader.core.network.BinanceWebSocket
+import com.adgent.trader.core.provider.PriceFeedHub
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.data.SettingsRepository
 import kotlinx.coroutines.CoroutineScope
@@ -12,19 +12,18 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 
 /**
- * Gap batteria in modalità RISPARMIO: il WebSocket aperto dalla UI (lista
- * mercati / grafico) restava collegato anche con l'app in background, finché
- * il processo viveva. Qui, in SAVER, al passaggio in background il WS viene
- * chiuso; al ritorno in foreground viene riaperto (solo se eravamo stati noi
- * a chiuderlo), così la UI live riparte senza che i ViewModel debbano
- * ricollegarsi. In REALTIME il WS lo tiene aperto il foreground service →
- * nessun intervento. La modalità è tenuta in cache (non letto a ogni callback)
- * per mantenere onStop sincrono: chiudere il WS mentre l'app è già rientrata
- * in foreground sarebbe peggio di non chiuderlo affatto.
+ * Gap batteria in modalità RISPARMIO: gli stream live della watchlist
+ * ([PriceFeedHub]) aperti dalla UI restavano collegati anche con l'app in
+ * background finché il processo viveva. Qui, in SAVER, al passaggio in
+ * background tutti i WebSocket vengono chiusi; al ritorno in foreground
+ * vengono riaperti (solo se eravamo stati noi a chiuderli), così la UI live
+ * riparte senza che i ViewModel debbano ricollegarsi. In REALTIME gli stream
+ * li tiene aperti il foreground service → nessun intervento. La modalità è
+ * tenuta in cache (non letta a ogni callback) per mantenere onStop sincrono.
  */
-class WsLifecycleController(
+class LiveFeedLifecycleController(
     private val settingsRepo: SettingsRepository,
-    private val ws: BinanceWebSocket,
+    private val hub: PriceFeedHub,
     private val scope: CoroutineScope,
 ) : DefaultLifecycleObserver {
 
@@ -34,7 +33,7 @@ class WsLifecycleController(
     fun attach() {
         // Seed sincrono: chiude la finestra tra l'avvio e la prima emissione
         // del DataStore, altrimenti un onStop in REALTIME (col default SAVER)
-        // chiuderebbe il WS che il foreground service sta avviando.
+        // chiuderebbe gli stream che il foreground service sta avviando.
         mode = runBlocking {
             runCatching { settingsRepo.settings.first().dataMode }
                 .getOrDefault(DataMode.SAVER)
@@ -47,14 +46,14 @@ class WsLifecycleController(
 
     override fun onStop(owner: LifecycleOwner) {
         if (mode == DataMode.SAVER) {
-            ws.disconnect()
+            hub.setForeground(false)
             closedForBackground = true
         }
     }
 
     override fun onStart(owner: LifecycleOwner) {
         if (closedForBackground) {
-            ws.connect()
+            hub.setForeground(true)
             closedForBackground = false
         }
     }

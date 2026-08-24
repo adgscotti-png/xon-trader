@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.StarBorder
@@ -45,6 +46,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +57,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adgent.trader.core.common.Format
 import com.adgent.trader.data.MarketRow
+import com.adgent.trader.data.ProviderSelection
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.components.CoinBadge
@@ -65,18 +69,36 @@ import com.adgent.trader.ui.components.PriceText
 import com.adgent.trader.ui.components.Sparkline
 import com.adgent.trader.ui.theme.MarketGreen
 import com.adgent.trader.ui.theme.MarketRed
+import kotlinx.coroutines.delay
 
 /**
  * Schermata Mercati: griglia di card live con filtri, ricerca e preferiti.
  * Tap apre il dettaglio con grafico · long-press aggiunge/toglie dai preferiti.
+ * Il provider è selezionabile in pagina (Auto + exchange): i ranking vengono
+ * scaricati a schermo attivo o col pulsante refresh, mai in polling.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MarketsScreen(
-    onOpenCoin: (String) -> Unit,
+    onOpenCoin: (String, String) -> Unit,
     vm: MarketsViewModel = appViewModel { MarketsViewModel(it) },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    // A schermo attivo i dati del provider selezionato si rinfrescano (entro il TTL
+    // di 60s della cache), così il ranking non invecchia mai a tab nascosto.
+    LifecycleResumeEffect(Unit) {
+        vm.onResume()
+        onPauseOrDispose { }
+    }
+
+    // Messaggio effimero (es. watchlist piena) mostrato come banner, poi consumato.
+    val message = state.message
+    LaunchedEffect(message) {
+        if (message != null) {
+            delay(2500)
+            vm.consumeMessage()
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -91,14 +113,26 @@ fun MarketsScreen(
             )
             SearchResults(state.searchResults, onOpenCoin, vm::toggleFavorite)
         } else {
-            MarketHeader(onSearch = { vm.setSearching(true) })
+            MarketHeader(
+                liveSources = state.liveSources,
+                onRefresh = vm::refresh,
+                onSearch = { vm.setSearching(true) },
+            )
+            ProviderChips(options = vm.providerOptions, selected = state.provider, onSelect = vm::setProvider)
             FilterChips(selected = state.filter, onSelect = vm::setFilter)
+            message?.let { MessageBanner(it) }
+            state.failoverMessage?.let { FailoverBanner(it) }
             state.offlineSinceMs?.let { OfflineBanner() }
             Box(Modifier.weight(1f)) {
                 when {
                     state.loading -> LoadingIndicator()
                     state.rows.isEmpty() && state.offlineSinceMs != null -> EmptyOffline(vm::retry)
-                    else -> MarketGrid(state.rows, onOpenCoin, vm::toggleFavorite)
+                    else -> MarketGrid(
+                        rows = state.rows,
+                        onOpenCoin = onOpenCoin,
+                        onToggleFavorite = vm::toggleFavorite,
+                        showProvider = state.provider == ProviderSelection.AUTO,
+                    )
                 }
             }
         }
@@ -108,11 +142,15 @@ fun MarketsScreen(
 // ---------- Header ----------
 
 @Composable
-private fun MarketHeader(onSearch: () -> Unit) {
+private fun MarketHeader(
+    liveSources: List<String>,
+    onRefresh: () -> Unit,
+    onSearch: () -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(start = 20.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -122,7 +160,14 @@ private fun MarketHeader(onSearch: () -> Unit) {
                 fontWeight = FontWeight.Black,
             )
             Spacer(Modifier.height(3.dp))
-            LiveBadge()
+            LiveBadge(liveSources)
+        }
+        IconButton(onClick = onRefresh) {
+            Icon(
+                Icons.Rounded.Refresh,
+                contentDescription = "Refresh prices now: downloads the latest prices and rankings for this exchange",
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
         IconButton(onClick = onSearch) {
             Icon(Icons.Rounded.Search, contentDescription = "Search a coin")
@@ -131,7 +176,7 @@ private fun MarketHeader(onSearch: () -> Unit) {
 }
 
 @Composable
-private fun LiveBadge() {
+private fun LiveBadge(sources: List<String>) {
     val transition = rememberInfiniteTransition(label = "live")
     val alpha by transition.animateFloat(
         initialValue = 1f,
@@ -139,6 +184,11 @@ private fun LiveBadge() {
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "pulse",
     )
+    val label = when {
+        sources.isEmpty() -> "Live data · Auto"
+        sources.size == 1 -> "Live data · ${sources.first()}"
+        else -> "Live data · ${sources.size} sources"
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             Modifier
@@ -148,14 +198,41 @@ private fun LiveBadge() {
         )
         Spacer(Modifier.width(6.dp))
         Text(
-            "Live data · Binance",
+            label,
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
-// ---------- Filtri ----------
+// ---------- Provider e filtri ----------
+
+/** Chips sorgente dati: Auto (miglior provider disponibile) oppure un exchange. */
+@Composable
+private fun ProviderChips(
+    options: List<ProviderSelection>,
+    selected: ProviderSelection,
+    onSelect: (ProviderSelection) -> Unit,
+) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.padding(bottom = 4.dp),
+    ) {
+        items(options) { sel ->
+            FilterChip(
+                selected = selected == sel,
+                onClick = { onSelect(sel) },
+                label = { Text(sel.label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedLabelColor = Color.White,
+                ),
+                border = null,
+            )
+        }
+    }
+}
 
 @Composable
 private fun FilterChips(selected: MarketFilter, onSelect: (MarketFilter) -> Unit) {
@@ -185,8 +262,9 @@ private fun FilterChips(selected: MarketFilter, onSelect: (MarketFilter) -> Unit
 @Composable
 private fun MarketGrid(
     rows: List<MarketRow>,
-    onOpenCoin: (String) -> Unit,
-    onToggleFavorite: (String) -> Unit,
+    onOpenCoin: (String, String) -> Unit,
+    onToggleFavorite: (MarketRow) -> Unit,
+    showProvider: Boolean,
     showFavoriteToggle: Boolean = false,
 ) {
     LazyVerticalGrid(
@@ -196,15 +274,17 @@ private fun MarketGrid(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxSize(),
     ) {
-        items(rows, key = { it.symbol }) { row ->
+        // La stessa coppia può esistere su più exchange: chiave composta.
+        items(rows, key = { "${it.provider.name}:${it.symbol}" }) { row ->
             MarketCard(
                 row = row,
                 showFavorite = row.isFavorite,
                 showFavoriteToggle = showFavoriteToggle,
-                onToggleFavorite = { onToggleFavorite(row.symbol) },
+                showProvider = showProvider,
+                onToggleFavorite = { onToggleFavorite(row) },
                 modifier = Modifier.combinedClickable(
-                    onClick = { onOpenCoin(row.symbol) },
-                    onLongClick = { onToggleFavorite(row.symbol) },
+                    onClick = { onOpenCoin(row.symbol, row.provider.name) },
+                    onLongClick = { onToggleFavorite(row) },
                 ),
             )
         }
@@ -213,14 +293,15 @@ private fun MarketGrid(
 
 /**
  * Card mercato 2-per-riga (stile TabTrader): badge, nome/simbolo, sparkline,
- * prezzo, variazione % e statistiche 24h. I dati sono gli stessi della vecchia
- * riga lista — cambia solo la presentazione.
+ * prezzo, variazione % e statistiche 24h. In modalità Auto (più exchange) mostra
+ * anche l'exchange di provenienza, così sai da quale mercato arriva il prezzo.
  */
 @Composable
 private fun MarketCard(
     row: MarketRow,
     showFavorite: Boolean,
     showFavoriteToggle: Boolean,
+    showProvider: Boolean,
     onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -258,12 +339,23 @@ private fun MarketCard(
                             )
                         }
                     }
-                    Text(
-                        row.symbol,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            row.symbol,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                        )
+                        if (showProvider) {
+                            Spacer(Modifier.width(5.dp))
+                            Text(
+                                row.provider.label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                            )
+                        }
+                    }
                 }
                 if (showFavoriteToggle) {
                     IconButton(onClick = onToggleFavorite, modifier = Modifier.size(28.dp)) {
@@ -361,8 +453,8 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit, onClose: (
 @Composable
 private fun SearchResults(
     results: List<MarketRow>,
-    onOpenCoin: (String) -> Unit,
-    onToggleFavorite: (String) -> Unit,
+    onOpenCoin: (String, String) -> Unit,
+    onToggleFavorite: (MarketRow) -> Unit,
 ) {
     if (results.isEmpty()) {
         EmptyState(
@@ -375,8 +467,49 @@ private fun SearchResults(
         rows = results,
         onOpenCoin = onOpenCoin,
         onToggleFavorite = onToggleFavorite,
+        showProvider = true,
         showFavoriteToggle = true,
     )
+}
+
+// ---------- Banner ----------
+
+/** Messaggio effimero della view model (es. cap watchlist raggiunto). */
+@Composable
+private fun MessageBanner(message: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Text(
+            message,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
+}
+
+/** Spiega che un exchange selezionato è giù e che i prezzi vengono da un altro. */
+@Composable
+private fun FailoverBanner(message: String) {
+    Surface(
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        shape = RoundedCornerShape(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+    ) {
+        Text(
+            message,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onTertiaryContainer,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+        )
+    }
 }
 
 // ---------- Stati speciali ----------

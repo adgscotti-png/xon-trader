@@ -50,7 +50,17 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
 
     private val repo = container.settingsRepo
 
+    /** Chips del default provider: AUTO + solo i provider registrati (le ondate li aggiungono). */
+    val providerOptions: List<com.adgent.trader.data.ProviderSelection> =
+        com.adgent.trader.data.ProviderSelection.entries.filter { sel ->
+            sel.providerId == null || sel.providerId in container.providerRegistry.enabledIds()
+        }
+
     fun setTheme(mode: ThemeMode) = viewModelScope.launch { repo.setTheme(mode) }
+
+    /** Sorgente dati di default per le nuove coppie (AUTO = migliore disponibile). */
+    fun setDefaultProvider(sel: com.adgent.trader.data.ProviderSelection) =
+        viewModelScope.launch { repo.setDefaultProvider(sel) }
 
     /** Cambia modalità dati e applica subito il servizio realtime on/off. */
     fun setDataMode(context: android.content.Context, mode: DataMode) = viewModelScope.launch {
@@ -73,11 +83,14 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                         note = it.note,
                         enabled = it.enabled,
                         createdAt = it.createdAt,
+                        provider = it.provider,
                     )
                 }
                 val data = com.adgent.trader.data.BackupData(
                     exportedAt = System.currentTimeMillis(),
-                    watchlist = container.watchlistRepo.all().map { it.symbol },
+                    watchlist = container.watchlistRepo.all().map {
+                        com.adgent.trader.data.BackupWatchItem(symbol = it.symbol, provider = it.provider)
+                    },
                     alerts = alerts,
                 )
                 context.contentResolver.openOutputStream(uri)?.use { out ->
@@ -108,10 +121,20 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
                         enabled = a.enabled,
                         createdAt = a.createdAt,
                         lastTriggeredAt = null,
+                        provider = a.provider,
                     )
                 },
             )
-            container.watchlistRepo.replaceAll(data.watchlist)
+            container.watchlistRepo.replaceAll(
+                data.watchlist.map { w ->
+                    com.adgent.trader.core.database.WatchlistEntity(
+                        provider = w.provider,
+                        symbol = w.symbol,
+                        position = 0,
+                        addedAt = System.currentTimeMillis(),
+                    )
+                },
+            )
             data.watchlist.size to data.alerts.size
         }.getOrNull()
     }
@@ -334,6 +357,27 @@ fun SettingsScreen(
             }
         }
 
+        // ---------- Sorgente dati mercati ----------
+        SettingsSection("Market data source") {
+            Text(
+                "Where prices come from by default. Auto picks the best available " +
+                    "exchange for each coin (and switches if one goes down). You can " +
+                    "override any single coin from its detail page.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(10.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                vm.providerOptions.forEach { sel ->
+                    FilterChip(
+                        selected = current.defaultProvider == sel,
+                        onClick = { vm.setDefaultProvider(sel) },
+                        label = { Text(sel.label) },
+                    )
+                }
+            }
+        }
+
         // ---------- Widget home screen ----------
         SettingsSection("Home-screen widgets") {
             Text(
@@ -399,8 +443,9 @@ fun SettingsScreen(
         // ---------- Info ----------
         SettingsSection("About") {
             Text(
-                "XON Trader · Binance market data (public endpoints, no signup " +
-                    "required). Informational app: this is not financial advice. " +
+                "XON Trader · market data from 7 public exchanges (Binance, Bybit, " +
+                    "Kraken, Coinbase, OKX, Bitfinex, KuCoin), no signup required. " +
+                    "Informational app: this is not financial advice. " +
                     "Free software, GPL-3.0 license.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

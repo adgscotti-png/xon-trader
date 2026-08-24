@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
 import com.adgent.trader.appContainer
+import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.notifications.Notifications
 import com.adgent.trader.data.DataMode
@@ -82,7 +83,7 @@ class AlertsViewModel(container: AppContainer) : ViewModel() {
  */
 @Composable
 fun AlertsScreen(
-    onOpenCoin: (String) -> Unit,
+    onOpenCoin: (String, String) -> Unit,
     onEditRule: (Long?) -> Unit,
     vm: AlertsViewModel = appViewModel { AlertsViewModel(it) },
 ) {
@@ -127,7 +128,7 @@ fun AlertsScreen(
                         rule = rule,
                         onToggle = { vm.setEnabled(rule, !rule.enabled) },
                         onDelete = { vm.delete(rule.id) },
-                        onOpenCoin = { onOpenCoin(rule.symbol) },
+                        onOpenCoin = { onOpenCoin(rule.symbol, rule.provider) },
                         onEdit = { onEditRule(rule.id) },
                     )
                 }
@@ -200,7 +201,7 @@ private fun AlertRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(start = 14.dp, top = 10.dp, bottom = 10.dp, end = 4.dp),
         ) {
-            CoinBadge(base = rule.symbol.removeSuffix("USDT"), size = 30.dp)
+            CoinBadge(base = baseOf(rule.symbol), size = 30.dp)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(
@@ -209,6 +210,13 @@ private fun AlertRow(
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 2,
                 )
+                com.adgent.trader.core.provider.ProviderId.fromName(rule.provider)?.let { pid ->
+                    Text(
+                        pid.label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 rule.note.takeIf { it.isNotBlank() }?.let {
                     Text(
                         it,

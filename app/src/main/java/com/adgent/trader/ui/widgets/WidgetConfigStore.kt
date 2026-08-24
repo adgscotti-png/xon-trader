@@ -23,6 +23,8 @@ enum class WidgetKind { TICKER, WATCHLIST }
 @Serializable
 data class WidgetConfig(
     val symbol: String = "",
+    /** Provider del simbolo configurato (default Binance; il JSON vecchio resta valido). */
+    val provider: String = "BINANCE",
     val textSizeSp: Int = 17,
     val numberFormat: NumberFormatMode = NumberFormatMode.AUTO,
     val showChange: Boolean = true,

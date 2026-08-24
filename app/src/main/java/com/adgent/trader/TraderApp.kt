@@ -3,24 +3,24 @@ package com.adgent.trader
 import android.app.Application
 import android.content.Context
 import com.adgent.trader.core.database.TraderDatabase
-import com.adgent.trader.core.network.BinanceApi
-import com.adgent.trader.core.service.WsLifecycleController
-import com.adgent.trader.core.network.BinanceWebSocket
+import com.adgent.trader.core.provider.AutoProviderRouter
+import com.adgent.trader.core.provider.MarketCatalog
+import com.adgent.trader.core.provider.PriceFeedHub
+import com.adgent.trader.core.provider.ProviderRegistry
+import com.adgent.trader.core.provider.SymbolMapper
+import com.adgent.trader.core.service.LiveFeedLifecycleController
 import com.adgent.trader.data.AlertRepository
-import com.adgent.trader.data.DataMode
 import com.adgent.trader.data.ChartRepository
+import com.adgent.trader.data.DataMode
+import com.adgent.trader.data.MarketDataRepository
 import com.adgent.trader.data.SettingsRepository
-import com.adgent.trader.data.TickerRepository
 import com.adgent.trader.data.WatchlistRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import retrofit2.Retrofit
-import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
 
 /**
@@ -36,23 +36,15 @@ class AppContainer(app: Application) {
     private val okHttp: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
+        .pingInterval(20, TimeUnit.SECONDS) // keepalive per i WebSocket; ignorato dalle REST
         .build()
 
-    private val retrofit: Retrofit = Retrofit.Builder()
-        .baseUrl("https://data-api.binance.vision/")
-        .client(okHttp)
-        .addConverterFactory(
-            kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
-                .asConverterFactory("application/json".toMediaType())
-        )
-        .build()
-
-    val api: BinanceApi = retrofit.create(BinanceApi::class.java)
-    val ws: BinanceWebSocket = BinanceWebSocket()
+    private val mapper = SymbolMapper()
     private val db: TraderDatabase = TraderDatabase.build(app)
 
-    val tickerRepo = TickerRepository(api, ws, db.symbolsDao(), db.tickerCacheDao(), db.klinesDao(), appScope)
-    val chartRepo = ChartRepository(api, db.klinesDao())
+    val providerRegistry = ProviderRegistry(okHttp, mapper)
+    val marketCatalog = MarketCatalog(db.symbolsDao(), mapper)
+
     val watchlistRepo = WatchlistRepository(db.watchlistDao()).apply {
         // Ogni modifica ai preferiti ridisegna subito i widget home screen.
         onChanged = { com.adgent.trader.core.work.WidgetUpdateWorker.enqueueNow(app) }
@@ -60,8 +52,18 @@ class AppContainer(app: Application) {
     val alertRepo = AlertRepository(db.alertDao())
     val settingsRepo = SettingsRepository(app)
 
-    /** Chiude il WebSocket in background in modalità Risparmio (gap batteria). */
-    val wsLifecycleController = WsLifecycleController(settingsRepo, ws, appScope)
+    val autoProviderRouter = AutoProviderRouter(mapper, providerRegistry)
+    val priceFeedHub = PriceFeedHub(
+        providerRegistry, watchlistRepo, settingsRepo, autoProviderRouter, mapper,
+        db.tickerCacheDao(), appScope,
+    )
+    val marketDataRepo = MarketDataRepository(
+        marketCatalog, providerRegistry, priceFeedHub, db.tickerCacheDao(), mapper,
+    )
+    val chartRepo = ChartRepository(providerRegistry, db.klinesDao())
+
+    /** Chiude gli stream live della watchlist in background in modalità Risparmio. */
+    val liveFeedLifecycleController = LiveFeedLifecycleController(settingsRepo, priceFeedHub, appScope)
 }
 
 class TraderApp : Application() {
@@ -71,8 +73,10 @@ class TraderApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        // Chiude il WebSocket in background in modalità Risparmio (gap batteria).
-        container.wsLifecycleController.attach()
+        // Live hub della watchlist: parte subito, si autoregola su watchlist/
+        // impostazioni/salute provider e in SAVER chiude gli stream in background.
+        container.priceFeedHub.start()
+        container.liveFeedLifecycleController.attach()
         // Canali notifica + feed realtime se la modalità dati lo prevede.
         com.adgent.trader.core.notifications.Notifications.ensureChannels(this)
         // Widget home screen: refresh periodico 15 min + subito ad ogni apertura app.

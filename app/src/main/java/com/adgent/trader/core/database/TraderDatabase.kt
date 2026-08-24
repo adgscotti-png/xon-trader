@@ -13,7 +13,7 @@ import androidx.room.RoomDatabase
         WatchlistEntity::class,
         AlertRuleEntity::class,
     ],
-    version = 1,
+    version = 2,
     exportSchema = false,
 )
 abstract class TraderDatabase : RoomDatabase() {
@@ -26,7 +26,7 @@ abstract class TraderDatabase : RoomDatabase() {
     companion object {
         fun build(context: Context): TraderDatabase =
             Room.databaseBuilder(context, TraderDatabase::class.java, "adgent_trader.db")
-                .fallbackToDestructiveMigration()
+                .addMigrations(MIGRATION_1_2)
                 .build()
     }
 }

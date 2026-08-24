@@ -13,8 +13,10 @@ import androidx.core.app.NotificationManagerCompat
 import com.adgent.trader.MainActivity
 import com.adgent.trader.R
 import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.model.PriceTick
+import com.adgent.trader.core.provider.ProviderId
 
 /** Canali notifica e builder per avvisi prezzo, azioni rapide incluse. */
 object Notifications {
@@ -66,7 +68,8 @@ object Notifications {
         tick: PriceTick,
     ) {
         if (!canPost(context)) return
-        val base = rule.symbol.removeSuffix("USDT")
+        val base = baseOf(rule.symbol)
+        val providerLabel = ProviderId.fromName(rule.provider)?.label ?: rule.provider
         val condition = describe(rule)
         val reached = when (rule.type) {
             "PRICE_ABOVE" -> tick.price >= rule.threshold
@@ -78,8 +81,11 @@ object Notifications {
 
         val openIntent = PendingIntent.getActivity(
             context,
-            ("coin_${rule.symbol}").hashCode(),
-            Intent(Intent.ACTION_VIEW, Uri.parse("adgent://coin/${rule.symbol}")),
+            ("coin_${rule.provider}_${rule.symbol}").hashCode(),
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("adgent://coin/${rule.symbol}?provider=${rule.provider}"),
+            ),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val disableIntent = PendingIntent.getBroadcast(
@@ -94,7 +100,7 @@ object Notifications {
 
         val notification = NotificationCompat.Builder(context, CHANNEL_PRICES)
             .setSmallIcon(R.drawable.ic_stat_alert)
-            .setContentTitle("$base ${Format.price(tick.price)}")
+            .setContentTitle("$base · $providerLabel ${Format.price(tick.price)}")
             .setContentText(condition)
             .setStyle(
                 NotificationCompat.BigTextStyle()
@@ -150,7 +156,7 @@ object Notifications {
 
     /** Descrizione leggibile della regola (riusata da lista UI). */
     fun describe(rule: AlertRuleEntity): String {
-        val base = rule.symbol.removeSuffix("USDT")
+        val base = baseOf(rule.symbol)
         return when (rule.type) {
             "PRICE_ABOVE" -> "$base above ${Format.price(rule.threshold)}"
             "PRICE_BELOW" -> "$base below ${Format.price(rule.threshold)}"

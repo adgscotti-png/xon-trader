@@ -43,6 +43,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.common.baseOf
+import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.core.common.NumberFormatMode
 import com.adgent.trader.core.work.WidgetUpdateWorker
 import com.adgent.trader.ui.theme.AdgentTraderTheme
@@ -103,7 +105,8 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
     val context = LocalContext.current
     var kind by rememberState { mutableStateOf<WidgetKind?>(null) }
     var config by rememberState { mutableStateOf<WidgetConfig?>(null) }
-    var symbols by rememberState { mutableStateOf<List<Pair<String, Double>>>(emptyList()) }
+    // (symbol, provider, price): la stessa coppia può esistere su più exchange.
+    var symbols by rememberState { mutableStateOf<List<Triple<String, String, Double>>>(emptyList()) }
     var refreshMinutes by rememberState { mutableIntStateOf(WidgetConfigStore.MIN_REFRESH_MINUTES) }
 
     LaunchedEffect(appWidgetId) {
@@ -151,16 +154,22 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
         refreshMinutes = WidgetConfigStore.getRefreshMinutes(c)
         val available = runCatching {
             val container = c.appContainer
-            val cachedPrices = container.tickerRepo.observeCached(limit = 300).first()
-                .associate { it.symbol to it.price }
-            val favs = container.watchlistRepo.all().map { it.symbol }
+            val cachedPrices = container.marketDataRepo.observeCached(provider = null, limit = 300).first()
+                .associateBy { "${it.provider}:${it.symbol}" }
+            val favs = container.watchlistRepo.all()
             // Preferiti anche se non in cache (prezzo 0 finché non arriva un update).
-            (favs + cachedPrices.keys).distinct().associateWith { cachedPrices[it] ?: 0.0 }
-        }.getOrDefault(emptyMap())
+            buildList {
+                favs.forEach { f ->
+                    add(Triple(f.symbol, f.provider, cachedPrices["${f.provider}:${f.symbol}"]?.price ?: 0.0))
+                }
+                cachedPrices.values.forEach { t -> add(Triple(t.symbol, t.provider, t.price)) }
+            }.distinctBy { "${it.second}:${it.first}" }
+                .sortedWith(compareBy({ it.first }, { it.second }))
+        }.getOrDefault(emptyList())
 
         kind = resolvedKind
         config = loaded
-        symbols = available.entries.map { it.key to it.value }.sortedBy { it.first }
+        symbols = available
     }
 
     val k = kind
@@ -211,7 +220,10 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
                 SymbolPicker(
                     symbols = symbols,
                     selected = cfg.symbol,
-                    onSelect = { config = cfg.copy(symbol = it) },
+                    selectedProvider = cfg.provider,
+                    onSelect = { sym, providerName ->
+                        config = cfg.copy(symbol = sym, provider = providerName)
+                    },
                 )
             }
         }
@@ -339,25 +351,26 @@ private fun WidgetConfig.Companion.sizesFor(kind: WidgetKind): List<Int> =
         WidgetKind.WATCHLIST -> LIST_SIZES
     }
 
-/** Picker simbolo: campo ricerca + lista cliccabile + voce Automatico. */
+/** Picker simbolo: campo ricerca + lista cliccabile (con exchange) + voce Automatico. */
 @Composable
 private fun SymbolPicker(
-    symbols: List<Pair<String, Double>>,
+    symbols: List<Triple<String, String, Double>>,
     selected: String,
-    onSelect: (String) -> Unit,
+    selectedProvider: String,
+    onSelect: (String, String) -> Unit,
 ) {
     var query by rememberState { mutableStateOf("") }
     Column {
         Row(verticalAlignment = Alignment.CenterVertically) {
             FilterChip(
                 selected = selected.isBlank(),
-                onClick = { onSelect(""); query = "" },
+                onClick = { onSelect("", "BINANCE"); query = "" },
                 label = { Text("Automatic") },
             )
             Spacer(Modifier.width(8.dp))
             Text(
                 if (selected.isBlank()) "follows your favorites"
-                else "fixed: ${selected.removeSuffix("USDT")}",
+                else "fixed: ${baseOf(selected)} · ${providerLabel(selectedProvider)}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -373,25 +386,29 @@ private fun SymbolPicker(
         )
         val results = if (query.isBlank()) emptyList()
         else symbols.filter { it.first.contains(query, ignoreCase = true) }.take(5)
-        results.forEach { (sym, _) ->
+        results.forEach { (sym, providerName, _) ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onSelect(sym); query = "" }
+                    .clickable { onSelect(sym, providerName); query = "" }
                     .padding(horizontal = 4.dp, vertical = 7.dp),
             ) {
-                Text(sym.removeSuffix("USDT"), fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text(
-                    sym,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                Column(Modifier.weight(1f)) {
+                    Text(baseOf(sym), fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "$sym · ${providerLabel(providerName)}",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
 }
+
+private fun providerLabel(providerName: String): String =
+    ProviderId.fromName(providerName)?.label ?: providerName
 
 @Composable
 private fun ToggleRow(

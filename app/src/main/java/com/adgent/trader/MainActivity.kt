@@ -28,10 +28,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
 import com.adgent.trader.data.Settings
 import com.adgent.trader.data.ThemeMode
@@ -143,12 +145,20 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
                 .padding(padding),
         ) {
             composable("markets") {
-                MarketsScreen(onOpenCoin = { navController.navigate("coin/$it") })
+                MarketsScreen(
+                    onOpenCoin = { symbol, providerName ->
+                        navController.navigate("coin/$symbol?provider=$providerName")
+                    },
+                )
             }
             composable("alerts") {
                 AlertsScreen(
-                    onOpenCoin = { navController.navigate("coin/$it") },
-                    onEditRule = { id -> navController.navigate("alertEdit?ruleId=$id") },
+                    onOpenCoin = { symbol, providerName ->
+                        navController.navigate("coin/$symbol?provider=$providerName")
+                    },
+                    onEditRule = { id ->
+                        navController.navigate(if (id != null) "alertEdit?ruleId=$id" else "alertEdit")
+                    },
                 )
             }
             composable("settings") {
@@ -160,22 +170,48 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
                 )
             }
             composable(
-                route = "coin/{symbol}",
-                deepLinks = listOf(navDeepLink { uriPattern = "adgent://coin/{symbol}" }),
+                route = "coin/{symbol}?provider={provider}",
+                arguments = listOf(
+                    navArgument("symbol") { type = NavType.StringType },
+                    navArgument("provider") { type = NavType.StringType; defaultValue = "BINANCE" },
+                ),
+                // Il pattern provider-aware viene valutato PRIMA, così i tap da
+                // widget/notifiche portano il provider; i deep link legacy
+                // "adgent://coin/{symbol}" continuano a funzionare (default BINANCE).
+                deepLinks = listOf(
+                    navDeepLink { uriPattern = "adgent://coin/{symbol}?provider={provider}" },
+                    navDeepLink { uriPattern = "adgent://coin/{symbol}" },
+                ),
             ) { entry ->
                 val symbol = entry.arguments?.getString("symbol") ?: "BTCUSDT"
+                val provider = entry.arguments?.getString("provider") ?: "BINANCE"
                 CoinDetailScreen(
                     symbol = symbol,
+                    providerName = provider,
                     onClose = { navController.popBackStack() },
-                    onCreateAlert = { navController.navigate("alertEdit?symbol=$symbol") },
+                    onCreateAlert = {
+                        navController.navigate("alertEdit?symbol=$symbol&provider=$provider")
+                    },
                 )
             }
-            composable("alertEdit?ruleId={ruleId}&symbol={symbol}") { entry ->
+            composable(
+                route = "alertEdit?ruleId={ruleId}&symbol={symbol}&provider={provider}",
+                // Query opzionali: i default null rendono obbligatorio solo l'argomento
+                // presente nella navigate() (ruleId di edit, oppure symbol+provider
+                // da coin detail). Il VM riempie i campi dalla regola se c'è ruleId.
+                arguments = listOf(
+                    navArgument("ruleId") { type = NavType.StringType; defaultValue = null },
+                    navArgument("symbol") { type = NavType.StringType; defaultValue = null },
+                    navArgument("provider") { type = NavType.StringType; defaultValue = null },
+                ),
+            ) { entry ->
                 val ruleId = entry.arguments?.getString("ruleId")?.toLongOrNull()
                 val symbol = entry.arguments?.getString("symbol")
+                val provider = entry.arguments?.getString("provider")
                 com.adgent.trader.ui.alerts.AlertEditScreen(
                     ruleId = ruleId,
                     presetSymbol = symbol,
+                    presetProvider = provider,
                     onClose = { navController.popBackStack() },
                 )
             }

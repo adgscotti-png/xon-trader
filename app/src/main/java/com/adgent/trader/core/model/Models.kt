@@ -1,5 +1,7 @@
 package com.adgent.trader.core.model
 
+import com.adgent.trader.core.provider.ProviderId
+
 /** Metadati di un simbolo scambiato (es. BTCUSDT → BTC/USDT). */
 data class SymbolInfo(
     val symbol: String,
@@ -29,7 +31,7 @@ data class Kline(
     val closeTime: Long,
 )
 
-/** Tick di prezzo in tempo reale (WebSocket miniTicker). */
+/** Tick di prezzo in tempo reale (WebSocket, normalizzato sul provider). */
 data class PriceTick(
     val symbol: String,
     val price: Double,
@@ -37,6 +39,7 @@ data class PriceTick(
     val high24h: Double,
     val low24h: Double,
     val quoteVolume24h: Double,
+    val provider: ProviderId = ProviderId.BINANCE,
 ) {
     val changePercent24h: Double
         get() = if (open24h > 0) (price - open24h) / open24h * 100.0 else 0.0

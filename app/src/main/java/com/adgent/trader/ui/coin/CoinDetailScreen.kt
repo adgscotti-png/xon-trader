@@ -76,9 +76,12 @@ import com.adgent.trader.ui.theme.MarketRed
 @Composable
 fun CoinDetailScreen(
     symbol: String,
+    providerName: String,
     onClose: () -> Unit,
     onCreateAlert: () -> Unit,
-    vm: CoinDetailViewModel = appViewModel(key = "coin-$symbol") { CoinDetailViewModel(it, symbol) },
+    vm: CoinDetailViewModel = appViewModel(key = "coin-$providerName-$symbol") {
+        CoinDetailViewModel(it, symbol, providerName)
+    },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -94,7 +97,7 @@ fun CoinDetailScreen(
         }
     }
 
-    val base = symbol.removeSuffix("USDT")
+    val base = state.base
 
     Column(
         modifier = Modifier
@@ -125,7 +128,7 @@ fun CoinDetailScreen(
                 Column(Modifier.weight(1f)) {
                     Text(base, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "$base/USDT · Binance",
+                        "${state.base}/${state.quote} · ${state.provider.label}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -170,6 +173,13 @@ fun CoinDetailScreen(
                 LiveTimeText()
             }
         }
+
+        // ---------- Sorgente dati per-coin (AUTO / exchange) ----------
+        SourceSelector(
+            selected = state.provider,
+            options = vm.enabledProviders,
+            onSelect = vm::setProvider,
+        )
 
         // ---------- Statistiche 24h (sopra il grafico) ----------
         StatsCard(state)
@@ -302,6 +312,42 @@ fun CoinDetailScreen(
             }
         }
         Spacer(Modifier.height(24.dp))
+    }
+}
+
+/** Selettore della fonte dati per questa coin: cambia l'override per-coin. */
+@Composable
+private fun SourceSelector(
+    selected: com.adgent.trader.core.provider.ProviderId,
+    options: List<com.adgent.trader.core.provider.ProviderId>,
+    onSelect: (com.adgent.trader.core.provider.ProviderId) -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Source",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(options) { p ->
+                androidx.compose.material3.FilterChip(
+                    selected = selected == p,
+                    onClick = { onSelect(p) },
+                    label = { Text(p.label) },
+                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor = androidx.compose.ui.graphics.Color.White,
+                    ),
+                    border = null,
+                )
+            }
+        }
     }
 }
 

@@ -45,6 +45,7 @@ import com.adgent.trader.R
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
 import com.adgent.trader.core.common.NumberFormatMode
+import com.adgent.trader.core.provider.ProviderId
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -61,6 +62,7 @@ data class WidgetRow(
     val base: String,
     val price: Double,
     val changePercent24h: Double,
+    val provider: ProviderId,
 )
 
 /**
@@ -70,30 +72,46 @@ data class WidgetRow(
 suspend fun loadWidgetRows(context: Context, limit: Int = 6): List<WidgetRow> =
     runCatching {
         val c = context.applicationContext.appContainer
-        val favs = c.watchlistRepo.all().map { it.symbol }
-        val cached = c.tickerRepo.observeCached(limit = 300).first().associateBy { it.symbol }
-        val ordered = (favs + cached.values.sortedByDescending { it.quoteVolume24h }.map { it.symbol })
+        val favs = c.watchlistRepo.all().map { "${it.provider}:${it.symbol}" }
+        val cached = c.marketDataRepo.observeCached(provider = null, limit = 300).first()
+            .associateBy { "${it.provider}:${it.symbol}" }
+        val ordered = (favs + cached.values
+            .sortedByDescending { it.quoteVolume24h }
+            .map { "${it.provider}:${it.symbol}" })
             .distinct()
             .take(limit)
-        ordered.mapNotNull { sym ->
-            cached[sym]?.let { t ->
-                WidgetRow(sym, sym.removeSuffix("USDT"), t.price, t.changePercent24h)
+        ordered.mapNotNull { key ->
+            cached[key]?.let { t ->
+                val provider = ProviderId.fromName(t.provider) ?: ProviderId.BINANCE
+                WidgetRow(
+                    symbol = t.symbol,
+                    base = c.marketDataRepo.fromCompact(t.symbol)?.base ?: t.symbol.removeSuffix("USDT"),
+                    price = t.price,
+                    changePercent24h = t.changePercent24h,
+                    provider = provider,
+                )
             }
         }
     }.getOrDefault(emptyList())
 
 /**
- * Simboli impostati manualmente nei widget ticker: vanno inclusi nel refresh
- * del worker, altrimenti un simbolo fuori dalla watchlist resterebbe fermo.
+ * Coppie (provider, symbol) impostate manualmente nei widget ticker: vanno
+ * incluse nel refresh del worker, altrimenti un simbolo fuori dalla watchlist
+ * resterebbe fermo.
  */
-suspend fun configuredTickerSymbols(context: Context): List<String> =
+suspend fun configuredTickerPairs(context: Context): List<Pair<String, String>> =
     runCatching {
         val awm = AppWidgetManager.getInstance(context)
         val ids = awm.getAppWidgetIds(ComponentName(context, TickerWidgetReceiver::class.java))
-        ids.map { id ->
-            WidgetConfigStore.load(context, WidgetKind.TICKER, id).symbol
-        }.filter { it.isNotBlank() }
+        ids.toList().mapNotNull { id ->
+            val cfg = WidgetConfigStore.load(context, WidgetKind.TICKER, id)
+            cfg.symbol.takeIf { it.isNotBlank() }?.let { cfg.provider to it }
+        }
     }.getOrDefault(emptyList())
+
+/** Solo simboli configurati nei widget ticker (per diagnostica e compatibilità). */
+suspend fun configuredTickerSymbols(context: Context): List<String> =
+    configuredTickerPairs(context).map { it.second }
 
 // ---------- Colori e stili condivisi ----------
 
@@ -117,9 +135,9 @@ private fun dimStyle(size: Int) = TextStyle(color = ColorProvider(TextDim), font
 @Composable
 private fun changeColor(percent: Double) = ColorProvider(if (percent >= 0) GreenUp else RedDown)
 
-/** Deep link al dettaglio coin dalla home screen. */
-private fun openCoinAction(symbol: String) = actionStartActivity(
-    Intent(Intent.ACTION_VIEW, Uri.parse("adgent://coin/$symbol")).apply {
+/** Deep link al dettaglio coin dalla home screen (con provider per il corretto grafico). */
+private fun openCoinAction(symbol: String, provider: ProviderId) = actionStartActivity(
+    Intent(Intent.ACTION_VIEW, Uri.parse("adgent://coin/$symbol?provider=${provider.name}")).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     },
 )
@@ -150,15 +168,16 @@ class TickerWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val appWidgetId = GlanceAppWidgetManager(context).getAppWidgetId(id)
         val cfg = WidgetConfigStore.load(context, WidgetKind.TICKER, appWidgetId)
+        val provider = ProviderId.fromName(cfg.provider) ?: ProviderId.BINANCE
         val rows = loadWidgetRows(context, limit = 30)
         // Lo strumento configurato vince SEMPRE: cache → download immediato →
         // segnaposto. Mai un'altra moneta al posto di quella scelta.
         val row = cfg.symbol.takeIf { it.isNotBlank() }
             ?.let { sym ->
-                rows.firstOrNull { it.symbol == sym }
-                    ?: fetchRowFromCache(context, sym)
-                    ?: fetchRowLive(context, sym)
-                    ?: WidgetRow(sym, sym.removeSuffix("USDT"), 0.0, 0.0)
+                rows.firstOrNull { it.symbol == sym && it.provider == provider }
+                    ?: fetchRowFromCache(context, provider, sym)
+                    ?: fetchRowLive(context, provider, sym)
+                    ?: WidgetRow(sym, sym.removeSuffix("USDT"), 0.0, 0.0, provider)
             }
             ?: rows.firstOrNull()
         val lastUpdate = WidgetConfigStore.lastUpdate(context)
@@ -184,7 +203,8 @@ class TickerWidget : GlanceAppWidget() {
                             verticalAlignment = Alignment.Vertical.CenterVertically,
                         ) {
                             Column(
-                                modifier = GlanceModifier.defaultWeight().clickable(openCoinAction(row.symbol)),
+                                modifier = GlanceModifier.defaultWeight()
+                                    .clickable(openCoinAction(row.symbol, row.provider)),
                             ) {
                                 Text(
                                     row.base,
@@ -241,25 +261,41 @@ class TickerWidgetReceiver : GlanceAppWidgetReceiver() {
 }
 
 /** Prezzo di un singolo simbolo direttamente dalla cache (per simboli configurati). */
-private suspend fun fetchRowFromCache(context: Context, symbol: String): WidgetRow? =
+private suspend fun fetchRowFromCache(context: Context, provider: ProviderId, symbol: String): WidgetRow? =
     runCatching {
-        context.applicationContext.appContainer.tickerRepo
-            .observeCached(limit = 500).first()
+        val c = context.applicationContext.appContainer
+        c.marketDataRepo.observeCached(provider = provider, limit = 500).first()
             .firstOrNull { it.symbol == symbol }
-            ?.let { WidgetRow(it.symbol, it.symbol.removeSuffix("USDT"), it.price, it.changePercent24h) }
+            ?.let {
+                WidgetRow(
+                    symbol = it.symbol,
+                    base = c.marketDataRepo.fromCompact(it.symbol)?.base ?: it.symbol.removeSuffix("USDT"),
+                    price = it.price,
+                    changePercent24h = it.changePercent24h,
+                    provider = provider,
+                )
+            }
     }.getOrNull()
 
 /**
  * Scarica subito il prezzo del simbolo configurato quando non è in cache
  * (es. fuori dalla watchlist): il widget non deve mai mostrare un altro asset.
  */
-private suspend fun fetchRowLive(context: Context, symbol: String): WidgetRow? =
+private suspend fun fetchRowLive(context: Context, provider: ProviderId, symbol: String): WidgetRow? =
     runCatching {
         val container = context.applicationContext.appContainer
-        container.tickerRepo.refreshTickers(listOf(symbol), force = true).getOrThrow()
-        container.tickerRepo.observeCached(limit = 500).first()
+        container.marketDataRepo.refreshTickers(provider, listOf(symbol), force = true).getOrThrow()
+        container.marketDataRepo.observeCached(provider = provider, limit = 500).first()
             .firstOrNull { it.symbol == symbol }
-            ?.let { WidgetRow(it.symbol, it.symbol.removeSuffix("USDT"), it.price, it.changePercent24h) }
+            ?.let {
+                WidgetRow(
+                    symbol = it.symbol,
+                    base = container.marketDataRepo.fromCompact(it.symbol)?.base ?: it.symbol.removeSuffix("USDT"),
+                    price = it.price,
+                    changePercent24h = it.changePercent24h,
+                    provider = provider,
+                )
+            }
     }.getOrNull()
 
 // ---------- Widget watchlist 4×2 ----------
@@ -308,7 +344,7 @@ class WatchlistWidget : GlanceAppWidget() {
                                         .fillMaxWidth()
                                         .background(ColorProvider(CardColor))
                                         .cornerRadius(10.dp)
-                                        .clickable(openCoinAction(r.symbol))
+                                        .clickable(openCoinAction(r.symbol, r.provider))
                                         .padding(horizontal = 10.dp, vertical = 5.dp),
                                     verticalAlignment = Alignment.Vertical.CenterVertically,
                                 ) {
@@ -378,10 +414,15 @@ class WidgetRefreshAction : ActionCallback {
         val ctx = context.applicationContext
         runCatching {
             val container = ctx.appContainer
-            val symbols = (container.watchlistRepo.all().map { it.symbol } +
-                configuredTickerSymbols(ctx)).distinct()
-                .ifEmpty { listOf("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT") }
-            container.tickerRepo.refreshTickers(symbols, force = true)
+            val pairs = container.watchlistRepo.all().map { it.provider to it.symbol } +
+                configuredTickerPairs(ctx)
+            val defaults = if (pairs.isEmpty())
+                listOf("BINANCE" to "BTCUSDT", "BINANCE" to "ETHUSDT", "BINANCE" to "SOLUSDT")
+            else pairs
+            defaults.groupBy { it.first }.forEach { (providerName, list) ->
+                val provider = ProviderId.fromName(providerName) ?: return@forEach
+                container.marketDataRepo.refreshTickers(provider, list.map { it.second }, force = true)
+            }
         }
         WidgetConfigStore.stampUpdate(ctx)
         runCatching { TickerWidget().updateAll(ctx) }

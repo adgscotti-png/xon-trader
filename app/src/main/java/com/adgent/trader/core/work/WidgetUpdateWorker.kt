@@ -15,17 +15,18 @@ import androidx.work.WorkerParameters
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.model.PriceTick
 import com.adgent.trader.core.notifications.Notifications
+import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.core.service.AlertEngine
 import com.adgent.trader.ui.widgets.TickerWidget
 import com.adgent.trader.ui.widgets.WatchlistWidget
 import com.adgent.trader.ui.widgets.WidgetConfigStore
-import com.adgent.trader.ui.widgets.configuredTickerSymbols
+import com.adgent.trader.ui.widgets.configuredTickerPairs
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
 /**
- * Aggiorna i widget home screen: refresh dei prezzi (preferiti + simboli
- * configurati nei widget), ridisegno dalla cache Room e — in modalità
+ * Aggiorna i widget home screen: refresh dei prezzi per-provider (preferiti +
+ * simboli configurati nei widget), ridisegno dalla cache Room e — in modalità
  * Risparmio o comunque a cadenza worker — valutazione degli avvisi sui dati
  * REST freschi. Il ridisegno avviene anche a rete assente: il widget mostra
  * l'ultimo dato noto invece di vuotarsi, con l'ora dell'aggiornamento.
@@ -39,10 +40,18 @@ class WidgetUpdateWorker(
         val context = applicationContext
         runCatching {
             val container = context.appContainer
-            val symbols = (container.watchlistRepo.all().map { it.symbol } +
-                configuredTickerSymbols(context)).distinct()
-                .ifEmpty { listOf("BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "DOGEUSDT") }
-            container.tickerRepo.refreshTickers(symbols, force = false)
+            val pairs = container.watchlistRepo.all().map { it.provider to it.symbol } +
+                configuredTickerPairs(context)
+            val defaults = if (pairs.isEmpty()) {
+                listOf(
+                    "BINANCE" to "BTCUSDT", "BINANCE" to "ETHUSDT",
+                    "BINANCE" to "SOLUSDT", "BINANCE" to "XRPUSDT", "BINANCE" to "DOGEUSDT",
+                )
+            } else pairs
+            defaults.groupBy { it.first }.forEach { (providerName, list) ->
+                val provider = ProviderId.fromName(providerName) ?: return@forEach
+                container.marketDataRepo.refreshTickers(provider, list.map { it.second }, force = false)
+            }
         }
         evaluateAlerts(context)
         WidgetConfigStore.stampUpdate(context)
@@ -61,11 +70,11 @@ class WidgetUpdateWorker(
             val container = context.appContainer
             val rules = container.alertRepo.enabledRules()
             if (rules.isEmpty()) return
-            val cached = container.tickerRepo.observeCached(limit = 500).first()
-                .associateBy { it.symbol }
+            val cached = container.marketDataRepo.observeCached(provider = null, limit = 500).first()
+                .associateBy { "${it.provider}:${it.symbol}" }
             val now = System.currentTimeMillis()
             rules.forEach { rule ->
-                val row = cached[rule.symbol] ?: return@forEach
+                val row = cached["${rule.provider}:${rule.symbol}"] ?: return@forEach
                 // Ricostruisce l'apertura 24h dallo scarto percentuale noto.
                 val open24h = if (row.changePercent24h != 0.0)
                     row.price / (1.0 + row.changePercent24h / 100.0) else row.price
@@ -76,6 +85,7 @@ class WidgetUpdateWorker(
                     high24h = row.high24h,
                     low24h = row.low24h,
                     quoteVolume24h = row.quoteVolume24h,
+                    provider = ProviderId.fromName(rule.provider) ?: ProviderId.BINANCE,
                 )
                 when (AlertEngine.evaluate(rule, tick, now)) {
                     AlertEngine.Verdict.SKIP -> Unit

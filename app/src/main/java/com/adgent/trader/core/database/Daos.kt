@@ -1,5 +1,6 @@
 package com.adgent.trader.core.database
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Insert
@@ -9,11 +10,12 @@ import androidx.room.Query
 import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 
-// ---------- Simboli (exchangeInfo, refresh settimanale) ----------
+// ---------- Simboli per provider (exchangeInfo, refresh per-provider) ----------
 
-@Entity(tableName = "symbols")
+@Entity(tableName = "symbols", primaryKeys = ["provider", "symbol"])
 data class SymbolEntity(
-    @PrimaryKey val symbol: String,
+    val provider: String,
+    val symbol: String,
     val base: String,
     val quote: String,
 )
@@ -23,11 +25,14 @@ interface SymbolsDao {
     @Query("SELECT * FROM symbols")
     suspend fun all(): List<SymbolEntity>
 
-    @Query("SELECT * FROM symbols WHERE symbol = :symbol LIMIT 1")
-    suspend fun bySymbol(symbol: String): SymbolEntity?
+    @Query("SELECT * FROM symbols WHERE provider = :provider")
+    suspend fun allFor(provider: String): List<SymbolEntity>
 
-    @Query("DELETE FROM symbols")
-    suspend fun clear()
+    @Query("SELECT * FROM symbols WHERE provider = :provider AND symbol = :symbol LIMIT 1")
+    suspend fun bySymbol(provider: String, symbol: String): SymbolEntity?
+
+    @Query("DELETE FROM symbols WHERE provider = :provider")
+    suspend fun deleteForProvider(provider: String)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(items: List<SymbolEntity>)
@@ -36,11 +41,12 @@ interface SymbolsDao {
     suspend fun count(): Int
 }
 
-// ---------- Cache ticker (offline + widget) ----------
+// ---------- Cache ticker per provider (offline + widget) ----------
 
-@Entity(tableName = "ticker_cache")
+@Entity(tableName = "ticker_cache", primaryKeys = ["provider", "symbol"])
 data class TickerCacheEntity(
-    @PrimaryKey val symbol: String,
+    val provider: String,
+    val symbol: String,
     val price: Double,
     val changePercent24h: Double,
     val high24h: Double,
@@ -56,20 +62,44 @@ interface TickerCacheDao {
     @Upsert
     suspend fun upsertAll(items: List<TickerCacheEntity>)
 
-    @Query("SELECT * FROM ticker_cache WHERE symbol = :symbol")
-    fun observe(symbol: String): Flow<TickerCacheEntity?>
+    @Query("SELECT * FROM ticker_cache WHERE provider = :provider AND symbol = :symbol")
+    fun observe(provider: String, symbol: String): Flow<TickerCacheEntity?>
 
     @Query("SELECT * FROM ticker_cache ORDER BY quoteVolume24h DESC LIMIT :limit")
-    fun topByVolume(limit: Int): Flow<List<TickerCacheEntity>>
+    fun topByVolumeAll(limit: Int): Flow<List<TickerCacheEntity>>
+
+    @Query("SELECT * FROM ticker_cache WHERE provider = :provider ORDER BY quoteVolume24h DESC LIMIT :limit")
+    fun topByVolume(provider: String, limit: Int): Flow<List<TickerCacheEntity>>
 
     @Query("SELECT * FROM ticker_cache")
     suspend fun all(): List<TickerCacheEntity>
+
+    @Query("SELECT * FROM ticker_cache WHERE provider = :provider")
+    suspend fun allFor(provider: String): List<TickerCacheEntity>
+
+    /** Aggiorna il tick live PRESERVANDO sparkline e updatedAt storico (per widget/offline). */
+    @Query(
+        "UPDATE ticker_cache SET price = :price, changePercent24h = :change, high24h = :high, " +
+            "low24h = :low, quoteVolume24h = :volume, updatedAt = :updatedAt " +
+            "WHERE provider = :provider AND symbol = :symbol"
+    )
+    suspend fun updateTick(
+        provider: String,
+        symbol: String,
+        price: Double,
+        change: Double,
+        high: Double,
+        low: Double,
+        volume: Double,
+        updatedAt: Long,
+    )
 }
 
-// ---------- Klines cache per grafico offline ----------
+// ---------- Klines cache per grafico offline (per provider) ----------
 
-@Entity(tableName = "klines", primaryKeys = ["symbol", "interval", "openTime"])
+@Entity(tableName = "klines", primaryKeys = ["provider", "symbol", "interval", "openTime"])
 data class KlineEntity(
+    val provider: String,
     val symbol: String,
     val interval: String,
     val openTime: Long,
@@ -84,26 +114,27 @@ data class KlineEntity(
 @Dao
 interface KlinesDao {
     @Query(
-        "SELECT * FROM klines WHERE symbol = :symbol AND interval = :interval " +
+        "SELECT * FROM klines WHERE provider = :provider AND symbol = :symbol AND interval = :interval " +
             "ORDER BY openTime ASC"
     )
-    suspend fun load(symbol: String, interval: String): List<KlineEntity>
+    suspend fun load(provider: String, symbol: String, interval: String): List<KlineEntity>
 
     @Upsert
     suspend fun upsertAll(items: List<KlineEntity>)
 
     @Query(
-        "DELETE FROM klines WHERE symbol = :symbol AND interval = :interval " +
+        "DELETE FROM klines WHERE provider = :provider AND symbol = :symbol AND interval = :interval " +
             "AND openTime < :before"
     )
-    suspend fun prune(symbol: String, interval: String, before: Long)
+    suspend fun prune(provider: String, symbol: String, interval: String, before: Long)
 }
 
-// ---------- Watchlist ----------
+// ---------- Watchlist (coppia provider+simbolo, max 20) ----------
 
-@Entity(tableName = "watchlist")
+@Entity(tableName = "watchlist", primaryKeys = ["provider", "symbol"])
 data class WatchlistEntity(
-    @PrimaryKey val symbol: String,
+    val provider: String,
+    val symbol: String,
     val position: Int,
     val addedAt: Long,
 )
@@ -119,8 +150,8 @@ interface WatchlistDao {
     @Upsert
     suspend fun upsert(item: WatchlistEntity)
 
-    @Query("DELETE FROM watchlist WHERE symbol = :symbol")
-    suspend fun delete(symbol: String)
+    @Query("DELETE FROM watchlist WHERE provider = :provider AND symbol = :symbol")
+    suspend fun delete(provider: String, symbol: String)
 
     @Query("DELETE FROM watchlist")
     suspend fun clear()
@@ -130,9 +161,12 @@ interface WatchlistDao {
 
     @Query("SELECT MAX(position) FROM watchlist")
     suspend fun maxPosition(): Int?
+
+    @Query("SELECT * FROM watchlist WHERE provider = :provider AND symbol = :symbol LIMIT 1")
+    suspend fun bySymbol(provider: String, symbol: String): WatchlistEntity?
 }
 
-// ---------- Regole avvisi prezzo ----------
+// ---------- Regole avvisi prezzo (provider del simbolo, default BINANCE) ----------
 
 @Entity(tableName = "alert_rules")
 data class AlertRuleEntity(
@@ -146,6 +180,8 @@ data class AlertRuleEntity(
     val enabled: Boolean = true,
     val createdAt: Long,
     val lastTriggeredAt: Long? = null,
+    /** Provider a cui appartiene il simbolo della regola (serve all'engine live). */
+    @ColumnInfo(defaultValue = "BINANCE") val provider: String = "BINANCE",
 )
 
 @Dao

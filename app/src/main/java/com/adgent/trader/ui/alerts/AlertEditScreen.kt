@@ -45,6 +45,7 @@ import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.model.AlertType
 import com.adgent.trader.core.service.PriceFeedController
@@ -56,11 +57,19 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+/** Candidato nel picker simbolo: simbolo provider-specifico + prezzo + provider. */
+data class AlertCandidate(
+    val symbol: String,
+    val price: Double,
+    val provider: String,
+)
+
 data class AlertEditUiState(
     val ruleId: Long? = null,
-    val symbols: List<Pair<String, Double>> = emptyList(), // symbol → prezzo corrente
+    val symbols: List<AlertCandidate> = emptyList(),
     val query: String = "",
     val symbol: String = "BTCUSDT",
+    val provider: String = "BINANCE",
     val type: AlertType = AlertType.PRICE_ABOVE,
     val threshold: String = "",
     val repeatable: Boolean = false,
@@ -79,25 +88,33 @@ class AlertEditViewModel(
     private val container: AppContainer,
     private val ruleId: Long?,
     presetSymbol: String?,
+    presetProvider: String?,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
-        AlertEditUiState(ruleId = ruleId, symbol = presetSymbol ?: "BTCUSDT")
+        AlertEditUiState(
+            ruleId = ruleId,
+            symbol = presetSymbol ?: "BTCUSDT",
+            provider = presetProvider ?: "BINANCE",
+        )
     )
     val state = _state.asStateFlow()
 
     init {
         viewModelScope.launch {
-            // Lista simboli con prezzo per il picker (cache mercati).
-            val cached = container.tickerRepo.observeCached(limit = 300).first()
-                .map { it.symbol to it.price }
-            _state.update { it.copy(symbols = cached.sortedBy { p -> p.first }) }
+            // Lista simboli con prezzo per il picker (cache mercati, tutti i provider).
+            val cached = container.marketDataRepo.observeCached(provider = null, limit = 300).first()
+                .map { AlertCandidate(it.symbol, it.price, it.provider) }
+            _state.update {
+                it.copy(symbols = cached.sortedWith(compareBy({ c -> c.symbol }, { c -> c.provider })))
+            }
 
             if (ruleId != null) {
                 container.alertRepo.byId(ruleId)?.let { r ->
                     _state.update {
                         it.copy(
                             symbol = r.symbol,
+                            provider = r.provider,
                             type = AlertType.entries.firstOrNull { t -> t.name == r.type }
                                 ?: AlertType.PRICE_ABOVE,
                             threshold = r.threshold.toBigDecimal().stripTrailingZeros().toPlainString(),
@@ -107,15 +124,20 @@ class AlertEditViewModel(
                     }
                 }
             } else if (presetSymbol == null) {
-                // Preimposta il simbolo con volume più alto (tipicamente BTCUSDT).
-                cached.maxByOrNull { it.second * 0 } // ordine cache già per volume
-                _state.update { s -> s.copy(symbol = cached.firstOrNull()?.first ?: "BTCUSDT") }
+                // Preimposta il simbolo con volume più alto (ordine cache già per volume).
+                _state.update { s ->
+                    s.copy(
+                        symbol = cached.firstOrNull()?.symbol ?: "BTCUSDT",
+                        provider = cached.firstOrNull()?.provider ?: "BINANCE",
+                    )
+                }
             }
         }
     }
 
     fun onQueryChange(q: String) = _state.update { it.copy(query = q) }
-    fun onSymbolPick(symbol: String) = _state.update { it.copy(symbol = symbol, query = "") }
+    fun onSymbolPick(candidate: AlertCandidate) =
+        _state.update { it.copy(symbol = candidate.symbol, provider = candidate.provider, query = "") }
     fun onType(t: AlertType) = _state.update { it.copy(type = t) }
     fun onThreshold(v: String) =
         _state.update { it.copy(threshold = v.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(15)) }
@@ -138,6 +160,7 @@ class AlertEditViewModel(
                 enabled = true,
                 createdAt = existing?.createdAt ?: System.currentTimeMillis(),
                 lastTriggeredAt = existing?.lastTriggeredAt,
+                provider = s.provider,
             )
             container.alertRepo.save(rule)
             if (container.settingsRepo.settings.first().dataMode == DataMode.REALTIME) {
@@ -164,9 +187,10 @@ class AlertEditViewModel(
 fun AlertEditScreen(
     ruleId: Long?,
     presetSymbol: String?,
+    presetProvider: String?,
     onClose: () -> Unit,
-    vm: AlertEditViewModel = appViewModel(key = "alert-edit-${ruleId ?: 0}-$presetSymbol") {
-        AlertEditViewModel(it, ruleId, presetSymbol)
+    vm: AlertEditViewModel = appViewModel(key = "alert-edit-${ruleId ?: 0}-$presetSymbol-$presetProvider") {
+        AlertEditViewModel(it, ruleId, presetSymbol, presetProvider)
     },
 ) {
     val context = LocalContext.current
@@ -209,19 +233,27 @@ fun AlertEditScreen(
                 .padding(horizontal = 16.dp),
         )
         val results = if (state.query.isBlank()) emptyList()
-        else state.symbols.filter { it.first.contains(state.query, ignoreCase = true) }.take(6)
-        results.forEach { (sym, price) ->
+        else state.symbols.filter { it.symbol.contains(state.query, ignoreCase = true) }.take(6)
+        results.forEach { c ->
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { vm.onSymbolPick(sym) }
+                    .clickable { vm.onSymbolPick(c) }
                     .padding(horizontal = 20.dp, vertical = 8.dp),
             ) {
-                Text(sym.removeSuffix("USDT"), fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(baseOf(c.symbol), fontWeight = FontWeight.SemiBold)
+                    com.adgent.trader.core.provider.ProviderId.fromName(c.provider)?.let { pid ->
+                        Text(
+                            "${c.symbol} · ${pid.label}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 Text(
-                    "$" + Format.price(price),
+                    "$" + Format.price(c.price),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -235,7 +267,9 @@ fun AlertEditScreen(
                 .padding(horizontal = 16.dp, vertical = 6.dp),
         ) {
             Text(
-                "Selected instrument: ${state.symbol.removeSuffix("USDT")}/USDT",
+                "Selected instrument: ${state.symbol} · " +
+                    (com.adgent.trader.core.provider.ProviderId.fromName(state.provider)?.label
+                        ?: state.provider),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
