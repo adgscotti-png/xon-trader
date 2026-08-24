@@ -66,9 +66,11 @@ class MarketDataRepository(
 
     fun fromCompact(symbol: String): CanonicalPair? = mapper.fromCompact(symbol)
 
-    /** Coppia canonica (base/quote) a partire dal simbolo di un provider. */
+    /** Coppia canonica (base/quote) a partire dal simbolo di un provider.
+     * Il coin detail arriva con il compatto canonico (es. "BTCUSD"): prima
+     * prova [SymbolMapper.fromCompact], poi il formato nativo (es. "BTC-USD"). */
     fun canonicalOf(provider: ProviderId, symbol: String): CanonicalPair? =
-        mapper.toCanonical(provider, symbol)
+        mapper.fromCompact(symbol) ?: mapper.toCanonical(provider, symbol)
 
     /** Simbolo provider-specifico per una coppia canonica (null se non listata). */
     fun providerSymbol(provider: ProviderId, pair: CanonicalPair): String? =

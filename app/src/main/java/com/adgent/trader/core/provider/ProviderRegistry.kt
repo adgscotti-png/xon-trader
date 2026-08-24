@@ -1,8 +1,13 @@
 package com.adgent.trader.core.provider
 
+import com.adgent.trader.core.network.BitfinexApi
 import com.adgent.trader.core.network.BybitApi
 import com.adgent.trader.core.network.BinanceApi
+import com.adgent.trader.core.network.CoinbaseApi
 import com.adgent.trader.core.network.KrakenApi
+import com.adgent.trader.core.network.KucoinApi
+import com.adgent.trader.core.network.OkxApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
@@ -18,8 +23,11 @@ import retrofit2.converter.kotlinx.serialization.asConverterFactory
 class ProviderRegistry(
     okHttp: OkHttpClient,
     mapper: SymbolMapper,
+    scope: CoroutineScope,
 ) {
-    private val json = Json { ignoreUnknownKeys = true }
+    // coerceInputValues: le API keyless restituiscono spesso `null` al posto
+    // di una stringa numerica (es. KuCoin `last:null`) → coerce sul default.
+    private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
     private val adapters: Map<ProviderId, MarketDataProvider> = buildMap {
         put(
@@ -42,6 +50,39 @@ class ProviderRegistry(
             ProviderId.KRAKEN,
             KrakenProvider(
                 api = retrofit("https://api.kraken.com/", okHttp).create(KrakenApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.COINBASE,
+            CoinbaseProvider(
+                api = retrofit("https://api.exchange.coinbase.com/", okHttp).create(CoinbaseApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.OKX,
+            OkxProvider(
+                api = retrofit("https://www.okx.com/", okHttp).create(OkxApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.BITFINEX,
+            BitfinexProvider(
+                api = retrofit("https://api-pub.bitfinex.com/", okHttp).create(BitfinexApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.KUCOIN,
+            KucoinProvider(
+                api = retrofit("https://api.kucoin.com/", okHttp).create(KucoinApi::class.java),
+                scope = scope,
                 client = okHttp,
                 mapper = mapper,
             )

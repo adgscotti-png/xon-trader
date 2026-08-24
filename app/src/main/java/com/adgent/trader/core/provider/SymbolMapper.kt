@@ -18,7 +18,7 @@ data class CanonicalPair(val base: String, val quote: String) {
  * BITFINEX "tBTCUST" (USDT=UST) · KRAKEN "XBTUSD" (base alias XBT→BTC).
  */
 class SymbolMapper(
-    private val baseAliases: Map<String, String> = mapOf("XBT" to "BTC"),
+    private val baseAliases: Map<String, String> = mapOf("XBT" to "BTC", "UDC" to "USDC"),
     private val quoteAliases: Map<String, String> = mapOf("UST" to "USDT"),
 ) {
     /** Costruisce una coppia canonica applicando gli alias di base (XBT→BTC). */

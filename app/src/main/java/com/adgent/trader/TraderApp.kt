@@ -42,7 +42,7 @@ class AppContainer(app: Application) {
     private val mapper = SymbolMapper()
     private val db: TraderDatabase = TraderDatabase.build(app)
 
-    val providerRegistry = ProviderRegistry(okHttp, mapper)
+    val providerRegistry = ProviderRegistry(okHttp, mapper, appScope)
     val marketCatalog = MarketCatalog(db.symbolsDao(), mapper)
 
     val watchlistRepo = WatchlistRepository(db.watchlistDao()).apply {

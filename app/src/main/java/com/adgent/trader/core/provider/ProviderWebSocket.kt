@@ -41,11 +41,24 @@ abstract class ProviderWebSocket(
     /** Messaggio di unsubscribe per un batch di simboli canonici, o null. */
     protected open fun unsubscribeMessage(symbols: Set<String>): String? = null
 
+    /** Varianti multi-messaggio: la maggior parte degli exchange accetta un solo
+     *  batch; Bitfinex vuole UN messaggio per simbolo. Default = delega a quella
+     *  singola (lista di 0/1 messaggi). */
+    protected open fun subscribeMessages(symbols: Set<String>): List<String> =
+        subscribeMessage(symbols)?.let { listOf(it) } ?: emptyList()
+
+    protected open fun unsubscribeMessages(symbols: Set<String>): List<String> =
+        unsubscribeMessage(symbols)?.let { listOf(it) } ?: emptyList()
+
     /** Heartbeat applicativo richiesto dall'exchange (0 = disabilitato):
      *  es. Bybit vuole {"op":"ping"} ogni 20s, Kraken {"event":"ping"} ogni ~30s.
      *  I ping di livello protocollo di OkHttp (pingInterval) non sempre bastano. */
     protected open fun keepAliveIntervalMs(): Long = 0L
     protected open fun keepAliveMessage(): String = ""
+
+    /** Risposta a un frame di controllo del server (ping/welcome/ack), o null
+     *  per ignorarlo: es. OKX e KuCoin mandano "ping" e vogliono il "pong". */
+    protected open fun controlReply(text: String): String? = null
 
     /** Traduce un frame nel formato provider in tick CANONICI. */
     protected abstract fun parseFrame(text: String): List<PriceTick>
@@ -84,18 +97,18 @@ abstract class ProviderWebSocket(
 
     fun subscribe(symbols: Collection<String>) {
         val added = symbols.filter { wanted.add(it) }
-        if (added.isNotEmpty()) wire { subscribeMessage(added.toSet()) }
+        if (added.isNotEmpty()) wire(added.toSet(), ::subscribeMessages)
     }
 
     fun unsubscribe(symbols: Collection<String>) {
         val removed = symbols.filter { wanted.remove(it) }
-        if (removed.isNotEmpty()) wire { unsubscribeMessage(removed.toSet()) }
+        if (removed.isNotEmpty()) wire(removed.toSet(), ::unsubscribeMessages)
     }
 
-    private fun wire(build: () -> String?) {
+    private fun wire(syms: Set<String>, build: (Set<String>) -> List<String>) {
         val s = socket ?: return
         if (_state.value != WsState.LIVE) return
-        build()?.let { s.send(it) }
+        build(syms).forEach { runCatching { s.send(it) } }
     }
 
     private fun open() {
@@ -138,10 +151,15 @@ abstract class ProviderWebSocket(
         override fun onOpen(webSocket: WebSocket, response: Response) {
             attempt = 0
             _state.value = WsState.LIVE
-            wire { subscribeMessage(wanted.toSet()) }
+            wire(wanted.toSet(), ::subscribeMessages)
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
+            val reply = runCatching { controlReply(text) }.getOrNull()
+            if (reply != null) {
+                runCatching { webSocket.send(reply) }
+                return
+            }
             runCatching { parseFrame(text) }.getOrNull()?.let { batch ->
                 val kept = batch.filter { it.symbol in wanted }
                 if (kept.isNotEmpty()) _ticks.tryEmit(kept)
