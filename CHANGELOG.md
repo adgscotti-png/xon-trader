@@ -1,39 +1,48 @@
 # Changelog — XON Trader
 
-Formato basato su [Keep a Changelog](https://keepachangelog.com/), versionamento [SemVer](https://semver.org/).
+Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
+
+## [0.2.9] — 2026-08-24
+
+### Added
+- **7 public keyless market providers** — Binance, Bybit, Kraken, Coinbase Exchange, OKX, Bitfinex and KuCoin: catalog, rankings, klines and live WebSocket per exchange. No registration or API key for any of them.
+- **Per-coin source picker** — in the coin detail, choose which exchange feeds that coin (or "Auto" for best-available with failover). The watchlist resolves each pair to its effective provider, so a coin overridden to Bybit shows Bybit data, badge and chart even when stored under another source.
+- **Settings → "Market data source"** — default provider chips (Auto + 7), same section as price alerts.
+- **Per-provider markets tab** — chip row (Auto / 7 exchanges) to pick the ranking source; rankings load on demand while the screen is active, with a manual refresh button.
+
+### Fixed
+- **KuCoin `last:null` crash** — some public APIs return JSON `null` for numeric fields; JSON coercion (`coerceInputValues`) now maps them to defaults.
+- **Coin detail header with canonical symbols** — `BTCUSDT/USDT · Coinbase`-style headers no longer double up the base; the header now shows `BTC/USDT · <source>`.
+
+### Verified
+- Emulator E2E green: F3 (all 4 new providers end-to-end) and F4 (multi-provider UI: per-coin override, override-aware watchlist, settings chips, no crashes).
+- Battery: in **Save** mode the WebSockets close when the app goes to background and reopen on return; **Realtime** keeps them open via the foreground service.
 
 ## [0.2.8] — 2026-08-24
 
-### Corretto
-- **Gap batteria in modalità Risparmio**: il WebSocket dei prezzi, aperto dalla UI
-  (lista mercati / grafico), restava collegato anche con l'app in background fino a
-  quando il processo viveva, consumando batteria e rete. Ora, in modalità Risparmio,
-  al passaggio in background il WebSocket viene chiuso e al ritorno in foreground
-  riaperto (la UI live riparte da sola). In modalità Realtime nessun cambiamento:
-  il foreground service continua a mantenere la connessione anche da background.
-- Verificato su emulatore (24/08): SAVER background→disconnect, refocus→reconnect;
-  REALTIME background→nessun disconnect, refocus→nessun reconnect spurio.
+### Fixed
+- **Battery gap in Save mode**: the price WebSocket opened by the UI (markets list / chart) stayed connected in background while the process lived, draining battery and network. Now, in Save mode, the WebSocket closes on background and reopens on foreground (live UI resumes by itself). Realtime mode unchanged: the foreground service keeps the connection alive even from background.
+- Verified on emulator (24/08): SAVER background→disconnect, refocus→reconnect; REALTIME background→no disconnect, refocus→no spurious reconnect.
 
-### Note
-- Le release 0.2.1→0.2.7 (fix feedback beta, widget, grafico, UI card grid) sono
-  documentate in `PLAN.md` §8–§11.
+### Notes
+- Releases 0.2.1→0.2.7 (beta feedback fixes, widget, chart, card-grid UI) are documented in `PLAN.md` §8–§11.
 
 ## [0.2.0-beta1] — 2026-08-22
 
-Prima beta completa: tutte le fasi F0–F6 del piano sono implementate.
+First complete beta: all phases F0–F6 of the plan are implemented.
 
-### Aggiunto
-- **Mercati live (F1)**: lista completa coppie Binance con prezzo e variazione 24h in tempo reale via WebSocket, ricerca, preferiti, cache offline-first (Room).
-- **Dettaglio coin (F2)**: grafico candele/linea/area interattivo (pinch-zoom, crosshair OHLC, volumi), 13 timeframe (1m → 1M), overlay MA 7/25/99, EMA 12/26, Bollinger, sub-chart **RSI** e **MACD**, statistiche 24h.
-- **Avvisi prezzo (F3)**: 4 tipi di soglia (sopra/sotto prezzo, +% / −% 24h), avvisi singoli o ripetibili con nota, notifiche con azione rapida "Disattiva" e apertura diretta del grafico, modalità **Realtime** (servizio foreground, ~1s) o **Risparmio** (poll 15 min), avvio automatico al boot, guida anti-kill per marca telefono.
-- **Widget home screen (F4)**: widget prezzo 2×1 e watchlist 4×2 (Glance), refresh ogni 15 min e ad ogni apertura app, deep link al grafico.
-- **Polish (F5)**: blocco app con biometria/PIN, backup/ripristino preferiti+avvisi in JSON, tema chiaro/scuro/sistema.
+### Added
+- **Live markets (F1)**: full Binance pair list with realtime price and 24h change via WebSocket, search, favorites, offline-first cache (Room).
+- **Coin detail (F2)**: interactive candlestick/line/area chart (pinch-zoom, OHLC crosshair, volumes), 13 timeframes (1m → 1M), MA 7/25/99, EMA 12/26, Bollinger overlays, **RSI** and **MACD** sub-charts, 24h stats.
+- **Price alerts (F3)**: 4 threshold types (above/below price, +% / −% 24h), single or repeatable with note, notifications with "Disable" quick action and direct chart deep-link, **Realtime** mode (foreground service, ~1s) or **Save** mode (15-min poll), auto-start on boot, anti-kill guide per phone brand.
+- **Home-screen widgets (F4)**: 2×1 price and 4×2 watchlist (Glance), refresh every 15 min and on every app open, deep link to the chart.
+- **Polish (F5)**: biometric/PIN app lock, JSON backup/restore of favorites+alerts, light/dark/system theme.
 
-### Note
-- Dati di mercato da endpoint pubblici Binance (`data-api.binance.vision`) — nessuna registrazione, nessuna chiave.
-- App informativa: non costituisce consulenza finanziaria.
-- Licenza **GPL-3.0**.
+### Notes
+- Market data from public Binance endpoints (`data-api.binance.vision`) — no registration, no key.
+- Informational app: not financial advice.
+- License **GPL-3.0**.
 
 ## [0.1.0-alpha1] — 2026-08-22
 
-- F0: scaffold progetto, ambiente build Docker ripetibile, CI GitHub Actions, brand XON (#4C3DFF→#E6007E).
+- F0: project scaffold, reproducible Docker build, GitHub Actions CI, XON brand (#4C3DFF→#E6007E).
