@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.adgent.trader.core.database.TraderDatabase
 import com.adgent.trader.core.network.BinanceApi
+import com.adgent.trader.core.service.WsLifecycleController
 import com.adgent.trader.core.network.BinanceWebSocket
 import com.adgent.trader.data.AlertRepository
 import com.adgent.trader.data.DataMode
@@ -58,6 +59,9 @@ class AppContainer(app: Application) {
     }
     val alertRepo = AlertRepository(db.alertDao())
     val settingsRepo = SettingsRepository(app)
+
+    /** Chiude il WebSocket in background in modalità Risparmio (gap batteria). */
+    val wsLifecycleController = WsLifecycleController(settingsRepo, ws, appScope)
 }
 
 class TraderApp : Application() {
@@ -67,6 +71,8 @@ class TraderApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
+        // Chiude il WebSocket in background in modalità Risparmio (gap batteria).
+        container.wsLifecycleController.attach()
         // Canali notifica + feed realtime se la modalità dati lo prevede.
         com.adgent.trader.core.notifications.Notifications.ensureChannels(this)
         // Widget home screen: refresh periodico 15 min + subito ad ogni apertura app.

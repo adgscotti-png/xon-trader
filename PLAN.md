@@ -356,3 +356,40 @@ build → ogni APK debug aveva firma diversa → `adb install -r` falliva
 - Grafico: header con clock + asse tempi piccolo e leggibile. Screenshot in
   `shots/repro/`.
 - **Release 0.2.4** (versionCode 6), stesso cert (upgrade in-place).
+
+## 12. Ondata fix gap batteria WS-in-background (24/08/2026) — release 0.2.8
+
+### Problema
+In modalità **Risparmio** il WebSocket (`!miniTicker@arr` su
+`data-stream.binance.vision`) resta collegato finché il processo vive: aperto dalla
+UI (`MarketsViewModel`/`CoinDetailViewModel` → `ensureLive()`), non veniva mai
+chiuso quando l'app andava in background (nessun foreground service in SAVER) →
+batteria e rete consumate per nulla. In REALTIME il problema non esiste: il
+foreground service tiene il WS e lo gestisce.
+
+### Fix
+- Nuova dipendenza `androidx.lifecycle:lifecycle-process` (2.8.7, già in catalogo).
+- Nuova classe `core/service/WsLifecycleController` (DefaultLifecycleObserver su
+  `ProcessLifecycleOwner`):
+  - cache della modalità dati (`settingsRepo.settings` collect, seed sincrono
+    in `attach()` con `runBlocking { first() }` per chiudere la finestra prima
+    della prima emissione DataStore);
+  - `onStop` (background) + modalità SAVER → `ws.disconnect()` (chiusura
+    **sincrona**: nessuna coroutine, nessuna race col ritorno in foreground);
+  - `onStart` (foreground) → `ws.connect()` SOLO se eravamo stati noi a chiudere
+    (`closedForBackground`): nessun reconnect spurio, e il passaggio
+    REALTIME→SAVER dalle impostazioni (che già ferma il service) non riapre il WS;
+  - REALTIME → mai toccato.
+- Wiring: istanza in `AppContainer`, `attach()` in `TraderApp.onCreate()`
+  (`ProcessLifecycleOwner` è inizializzato da startup prima di `Application.onCreate`).
+- Il worker widget (15 min, REST) resta la rete di sicurezza per gli alert in SAVER:
+  indipendente dal WS, nessuna modifica.
+
+### Verifica (24/08, emulatore API 35, logcat temporaneo poi rimosso)
+- SAVER: launch → `connect()` (UI live) · background → `onStop mode=SAVER` →
+  `disconnect()` · refocus → `onStart closedForBackground=true` → `connect()`.
+- REALTIME (switch impostazioni, service attivo): background → `onStop mode=REALTIME`
+  → **nessun** disconnect · refocus → nessun reconnect spurio.
+- Debug + release firmati (stesso cert `6b924345...`), R8 ok.
+
+**Release 0.2.8** (versionCode 10).
