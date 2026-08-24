@@ -48,8 +48,8 @@ enum class Timeframe(val binanceInterval: String, val label: String, val default
     M15("15m", "15m", 96),
     H1("1h", "1h", 168),
     H4("4h", "4h", 180),
-    D1("1d", "1g", 365),
-    W1("1w", "1s", 260),
+    D1("1d", "1d", 365),
+    W1("1w", "1w", 260),
     MO("1M", "1M", 200),
     ;
 

@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "adgent-trader"
+rootProject.name = "xon-trader"
 include(":app")

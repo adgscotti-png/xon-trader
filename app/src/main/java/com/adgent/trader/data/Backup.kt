@@ -18,7 +18,7 @@ data class BackupAlert(
 /** Formato file backup: watchlist + avvisi. Versionato per evoluzioni future. */
 @Serializable
 data class BackupData(
-    val app: String = "adgent-trader",
+    val app: String = "xon-trader",
     val version: Int = 1,
     val exportedAt: Long,
     val watchlist: List<String> = emptyList(),

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">ADGENT TRADER</string>
-    <string name="widget_ticker_label">ADGENT — Price</string>
-    <string name="widget_watchlist_label">ADGENT — Watchlist</string>
+    <string name="app_name">XON Trader</string>
+    <string name="widget_ticker_label">XON — Price</string>
+    <string name="widget_watchlist_label">XON — Watchlist</string>
     <string name="widget_ticker_desc">Live crypto price on your home screen</string>
     <string name="widget_watchlist_desc">Your favorite cryptos with live prices</string>
 </resources>

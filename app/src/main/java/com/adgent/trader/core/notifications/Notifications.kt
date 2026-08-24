@@ -126,7 +126,7 @@ object Notifications {
             .setStyle(
                 NotificationCompat.BigTextStyle()
                     .bigText("Perfect: price alerts will arrive in this form. " +
-                        "If you don't see it, check system notifications for ADGENT Trader."),
+                        "If you don't see it, check system notifications for XON Trader."),
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setColor(0xFF4C3DFF.toInt())
@@ -141,7 +141,7 @@ object Notifications {
     fun serviceNotification(context: Context, text: String): android.app.Notification =
         NotificationCompat.Builder(context, CHANNEL_SERVICE)
             .setSmallIcon(R.drawable.ic_stat_alert)
-            .setContentTitle("ADGENT Trader")
+            .setContentTitle("XON Trader")
             .setContentText(text)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_MIN)

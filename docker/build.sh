@@ -11,8 +11,8 @@
 set -euo pipefail
 
 SANDBOX_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-IMAGE="adgent-trader-builder:1.0"
-HOST_REPO="/home/andrea/projects/adgent-trader"
+IMAGE="xon-trader-builder:1.0"
+HOST_REPO="/home/andrea/projects/xon-trader"
 HOST_SDK="/home/andrea/projects/android-sdk"
 HOST_GRADLE="/home/andrea/projects/gradle-home"
 # Keystore di DEBUG: senza questa persistenza AGP ne genera uno NUOVO a ogni

@@ -1,4 +1,4 @@
-# ADGENT TRADER — alternativa FOSS a TabTrader
+# XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
 `WORKING-ON: F6 beta pubblica — release firmata 0.2.0-beta1 (R8+keystore), changelog; manca solo repo GitHub remota per Releases (serve Andrea). F1-F5 complete e committate`
@@ -174,7 +174,7 @@ pubblici), F-Droid, Wear OS tile.
 1. **Kill process OEM** → doppia modalità + guida per-marca + test su Xiaomi reale
 2. **Geo-blocco binance.com** (UK/US) → default `binance.vision`, setting endpoint custom (`api.binance.us`)
 3. **Policy Play finance** → disclaimer "non è consulenza finanziaria"; app informativa ok
-4. **Trademark** → risolto: nome **ADGENT TRADER** (decisione Andrea 22/08/2026), brand kit ADGENT (#4C3DFF→#E6007E), licenza GPL-3.0
+4. **Trademark** → risolto: nome **XON TRADER** (decisione Andrea 24/08/2026, già "XON Trader"), brand kit (#4C3DFF→#E6007E), licenza GPL-3.0
 5. **Binance cambia API** → layer `:core:network` isolato + contract test + version pin
 
 ---
@@ -393,3 +393,46 @@ foreground service tiene il WS e lo gestisce.
 - Debug + release firmati (stesso cert `6b924345...`), R8 ok.
 
 **Release 0.2.8** (versionCode 10).
+
+## 13. Ondata REBRAND XON TRADER (24/08/2026) — dentro release 0.2.8
+
+Decisione Andrea 24/08/2026: nome finale **"XON Trader"** (da **XONIC TRADER**,
+richiama la velocità giocando con "sonic": risponde solo agli user need, "è un
+lampo"). Rinomina anche progetto e repo, così ci si capisce quando se ne parla
+e su GitHub.
+
+### Cosa è cambiato
+- **Nome app** "XON Trader" ovunque (strings.xml, widget label/preview,
+  AppLock, notifiche, Settings, widget diagnostics, README, CHANGELOG, PLAN).
+- **Icona nuova** dall'icon set di Andrea (`xon_trader_icon.zip`): fulmine +
+  wordmark "XON TRADER" bianco su nero, adaptive foreground 5 densità
+  (FRAC 0.60, mark sorgente x[79,942] y[340,683]). Generata da
+  `/tmp/gen_xon_icon.js` (decoder/encoder PNG filter-aware, alpha=luminance).
+- **Lingua grafici in inglese**: `CandleChart.kt` CANDLES→**Candles**,
+  LINEA→**Line**, AREA→**Area**; timeframes `Models.kt` D1 "1g"→**"1d"**,
+  W1 "1s"→**"1w"** (erano le abbreviazioni italiane giorno/settimana);
+  AppLock "Sblocca"→**"Unlock"**.
+- **Cartella** `/workspace/adgent-trader` → `/workspace/xon-trader`
+  (== host `/home/andrea/projects/xon-trader`).
+- **GitHub** repo `adgscotti-png/adgent-trader` → `adgscotti-png/xon-trader`
+  (API PATCH, 200 OK; vecchio nome redirige). Remote `.git/config` aggiornato.
+- **Builder docker** `adgent-trader-builder:1.0` → `xon-trader-builder:1.0`
+  (build.sh HOST_REPO aggiornato); build verde 59s.
+- Backup export: `adgent-trader-backup-*.json` → `xon-trader-backup-*.json`.
+
+### NON cambiato (per scelta, upgrade-in-place)
+Package/identità **`com.adgent.trader`** tenuto: deep link `adgent://coin/`,
+tema `Theme.AdgentTrader`, db Room `adgent_trader.db`, proguard, script
+emulatore `PKG=com.adgent.trader`, classi `WidgetConfigActivity` ecc. → chi ha
+la 0.2.7 installata fa upgrade in-place senza reinstallare, senza rompere
+deep-link/theme/db. Eventuale rinomina package = ondata separata + migrazione.
+
+### Verifica (24/08, emulatore API 35)
+- aapt: `application-label:'XON Trader'`, icon adaptive `ic_launcher.xml`.
+- UI dump grafico: timeframes `1m 15m 1h 4h 1d 1w 1M` + mode `Candles/Line/Area`.
+- Sweep stringhe: nessun residuo italiano user-visible (tutti i match rimasti
+  sono commenti dev-facing).
+- Shots: `shots/xon-rebrand-{chart,markets}.png`.
+
+**Release 0.2.8** (versionCode 10) — ⏳ **non ancora pushato**: Andrea ha chiesto
+di aspettare (altri cambi prima della pubblicazione).

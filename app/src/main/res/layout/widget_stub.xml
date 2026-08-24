@@ -3,6 +3,6 @@
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:text="ADGENT TRADER"
+    android:text="XON Trader"
     android:textColor="#FFFFFF"
     android:background="#151829" />

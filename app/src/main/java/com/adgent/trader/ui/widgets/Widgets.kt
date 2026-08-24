@@ -175,7 +175,7 @@ class TickerWidget : GlanceAppWidget() {
                 ) {
                     if (row == null) {
                         Text(
-                            "Open ADGENT Trader to load data",
+                            "Open XON Trader to load data",
                             style = dimStyle(11),
                         )
                     } else {
@@ -297,7 +297,7 @@ class WatchlistWidget : GlanceAppWidget() {
                     Spacer(GlanceModifier.height(4.dp))
 
                     if (rows.isEmpty()) {
-                        Text("Open ADGENT Trader to load data", style = dimStyle(11))
+                        Text("Open XON Trader to load data", style = dimStyle(11))
                     } else {
                         // Column annidata: Glance limita a 10 figli per contenitore,
                         // con le righe qui dentro non si troncano mai.

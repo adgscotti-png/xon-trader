@@ -1,4 +1,4 @@
-# Changelog — ADGENT Trader
+# Changelog — XON Trader
 
 Formato basato su [Keep a Changelog](https://keepachangelog.com/), versionamento [SemVer](https://semver.org/).
 
@@ -36,4 +36,4 @@ Prima beta completa: tutte le fasi F0–F6 del piano sono implementate.
 
 ## [0.1.0-alpha1] — 2026-08-22
 
-- F0: scaffold progetto, ambiente build Docker ripetibile, CI GitHub Actions, brand ADGENT (#4C3DFF→#E6007E).
+- F0: scaffold progetto, ambiente build Docker ripetibile, CI GitHub Actions, brand XON (#4C3DFF→#E6007E).

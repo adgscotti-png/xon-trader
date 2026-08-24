@@ -316,7 +316,7 @@ fun SettingsScreen(
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "Some phones kill background apps. To guarantee alerts, " +
-                                "exclude ADGENT Trader from battery optimization in phone settings.",
+                                "exclude XON Trader from battery optimization in phone settings.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -380,7 +380,7 @@ fun SettingsScreen(
                 OutlinedButton(onClick = {
                     val stamp = java.text.SimpleDateFormat("yyyyMMdd-HHmm", java.util.Locale.ROOT)
                         .format(java.util.Date())
-                    safeLaunch { exportLauncher.launch("adgent-trader-backup-$stamp.json") }
+                    safeLaunch { exportLauncher.launch("xon-trader-backup-$stamp.json") }
                 }) {
                     Text("Export to file…")
                 }
@@ -399,7 +399,7 @@ fun SettingsScreen(
         // ---------- Info ----------
         SettingsSection("About") {
             Text(
-                "ADGENT Trader · Binance market data (public endpoints, no signup " +
+                "XON Trader · Binance market data (public endpoints, no signup " +
                     "required). Informational app: this is not financial advice. " +
                     "Free software, GPL-3.0 license.",
                 style = MaterialTheme.typography.labelSmall,

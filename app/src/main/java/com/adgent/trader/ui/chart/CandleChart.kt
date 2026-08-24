@@ -71,8 +71,8 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 enum class ChartMode(val label: String) {
-    CANDLES("Candele"),
-    LINE("Linea"),
+    CANDLES("Candles"),
+    LINE("Line"),
     AREA("Area"),
 }
 

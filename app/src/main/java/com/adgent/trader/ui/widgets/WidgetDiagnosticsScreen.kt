@@ -167,7 +167,7 @@ fun WidgetDiagnosticsScreen(onClose: () -> Unit) {
             DiagBlock("No widgets on the home screen") {
                 Text(
                     "Add a widget from the launcher (long-press home → Widgets → " +
-                        "ADGENT Trader). After configuring it, it appears here with " +
+                        "XON Trader). After configuring it, it appears here with " +
                         "its own settings.",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -1,4 +1,4 @@
-# ADGENT TRADER
+# XON Trader
 
 Terminale crypto Android **gratuito e senza intermediari**: grafici, widget home
 con prezzo live e alert realtime su dati di mercato Binance (endpoint pubblici,
@@ -52,4 +52,4 @@ Tink/Keystore, mai trasmesse fuori dal dispositivo.
 ## Licenza
 
 GPL-3.0-only — vedi [`LICENSE`](LICENSE).
-Copyright © 2026 Andrea Scotti / ADGENT.
+Copyright © 2026 Andrea Scotti / XON Trader.
