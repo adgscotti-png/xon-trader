@@ -41,6 +41,12 @@ abstract class ProviderWebSocket(
     /** Messaggio di unsubscribe per un batch di simboli canonici, o null. */
     protected open fun unsubscribeMessage(symbols: Set<String>): String? = null
 
+    /** Heartbeat applicativo richiesto dall'exchange (0 = disabilitato):
+     *  es. Bybit vuole {"op":"ping"} ogni 20s, Kraken {"event":"ping"} ogni ~30s.
+     *  I ping di livello protocollo di OkHttp (pingInterval) non sempre bastano. */
+    protected open fun keepAliveIntervalMs(): Long = 0L
+    protected open fun keepAliveMessage(): String = ""
+
     /** Traduce un frame nel formato provider in tick CANONICI. */
     protected abstract fun parseFrame(text: String): List<PriceTick>
 
@@ -60,6 +66,7 @@ abstract class ProviderWebSocket(
     @Volatile private var socket: WebSocket? = null
     @Volatile private var shouldRun = false
     @Volatile private var attempt = 0
+    @Volatile private var keepAliveThread: Thread? = null
 
     fun connect() {
         if (shouldRun) return
@@ -69,6 +76,7 @@ abstract class ProviderWebSocket(
 
     fun disconnect() {
         shouldRun = false
+        stopKeepAlive()
         socket?.close(1000, "client shutdown")
         socket = null
         _state.value = WsState.OFF
@@ -94,6 +102,33 @@ abstract class ProviderWebSocket(
         if (!shouldRun) return
         _state.value = WsState.CONNECTING
         socket = client.newWebSocket(buildRequest(), Listener())
+        startKeepAlive()
+    }
+
+    private fun startKeepAlive() {
+        val interval = keepAliveIntervalMs()
+        if (interval <= 0) return
+        stopKeepAlive()
+        val t = Thread {
+            while (shouldRun) {
+                try {
+                    Thread.sleep(interval)
+                } catch (_: InterruptedException) {
+                    return@Thread
+                }
+                val s = socket
+                if (s != null && _state.value == WsState.LIVE) {
+                    runCatching { s.send(keepAliveMessage()) }
+                }
+            }
+        }
+        keepAliveThread = t
+        t.start()
+    }
+
+    private fun stopKeepAlive() {
+        keepAliveThread?.interrupt()
+        keepAliveThread = null
     }
 
     private fun reconnectDelay(): Long =

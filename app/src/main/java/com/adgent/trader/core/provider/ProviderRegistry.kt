@@ -1,6 +1,8 @@
 package com.adgent.trader.core.provider
 
+import com.adgent.trader.core.network.BybitApi
 import com.adgent.trader.core.network.BinanceApi
+import com.adgent.trader.core.network.KrakenApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.serialization.json.Json
@@ -24,6 +26,22 @@ class ProviderRegistry(
             ProviderId.BINANCE,
             BinanceProvider(
                 api = retrofit("https://data-api.binance.vision/", okHttp).create(BinanceApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.BYBIT,
+            BybitProvider(
+                api = retrofit("https://api.bybit.com/", okHttp).create(BybitApi::class.java),
+                client = okHttp,
+                mapper = mapper,
+            )
+        )
+        put(
+            ProviderId.KRAKEN,
+            KrakenProvider(
+                api = retrofit("https://api.kraken.com/", okHttp).create(KrakenApi::class.java),
                 client = okHttp,
                 mapper = mapper,
             )

@@ -21,6 +21,10 @@ class SymbolMapper(
     private val baseAliases: Map<String, String> = mapOf("XBT" to "BTC"),
     private val quoteAliases: Map<String, String> = mapOf("UST" to "USDT"),
 ) {
+    /** Costruisce una coppia canonica applicando gli alias di base (XBT→BTC). */
+    fun canonical(base: String, quote: String): CanonicalPair =
+        CanonicalPair(baseAliases[base] ?: base, quote)
+
     /** Quote offerte da un provider (Kraken non ha coppie USDT). */
     fun supportedQuotes(provider: ProviderId): Set<String> = when (provider) {
         ProviderId.KRAKEN -> setOf("USD", "USDC", "EUR", "GBP", "JPY", "BTC", "ETH")
