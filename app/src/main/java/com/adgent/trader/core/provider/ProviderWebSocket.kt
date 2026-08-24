@@ -1,5 +1,6 @@
 package com.adgent.trader.core.provider
 
+import android.util.Log
 import com.adgent.trader.core.model.PriceTick
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.Flow
@@ -83,11 +84,13 @@ abstract class ProviderWebSocket(
 
     fun connect() {
         if (shouldRun) return
+        Log.d(TAG, "${javaClass.simpleName} connect")
         shouldRun = true
         open()
     }
 
     fun disconnect() {
+        Log.d(TAG, "${javaClass.simpleName} disconnect (${wanted.size} syms)")
         shouldRun = false
         stopKeepAlive()
         socket?.close(1000, "client shutdown")
@@ -149,6 +152,7 @@ abstract class ProviderWebSocket(
 
     private inner class Listener : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) {
+            Log.d(TAG, "${javaClass.simpleName} open (${wanted.size} syms)")
             attempt = 0
             _state.value = WsState.LIVE
             wire(wanted.toSet(), ::subscribeMessages)
@@ -167,10 +171,12 @@ abstract class ProviderWebSocket(
         }
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            Log.d(TAG, "${javaClass.simpleName} failure: ${t.message}")
             scheduleReconnect()
         }
 
         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            Log.d(TAG, "${javaClass.simpleName} closed ($code)")
             if (shouldRun) scheduleReconnect()
         }
     }
@@ -190,4 +196,8 @@ abstract class ProviderWebSocket(
     }
 
     enum class WsState { OFF, CONNECTING, LIVE, RECONNECTING }
+
+    companion object {
+        private const val TAG = "XONWs"
+    }
 }
