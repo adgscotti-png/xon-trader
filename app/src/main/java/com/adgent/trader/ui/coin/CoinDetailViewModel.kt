@@ -15,7 +15,11 @@ import com.adgent.trader.ui.chart.ChartMode
 import com.adgent.trader.ui.chart.OscKind
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -83,21 +87,31 @@ class CoinDetailViewModel(
     val state = _state.asStateFlow()
 
     init {
-        // Prezzo live + stats 24h dal flusso del live hub (watchlist).
+        // Prezzo live + stats 24h: priorità al tick del live hub (watchlist),
+        // fallback sulla riga cache Room (coin NON in watchlist, popolata dal
+        // refreshTickers on-open — senza fallback le stats restano vuote).
+        // flatMapLatest su (provider, symbol): dopo lo switch di fonte il
+        // collector riosserva la nuova coppia invece di restare sull'originale.
         viewModelScope.launch {
-            marketDataRepo.liveVersion().collect {
-                marketDataRepo.liveTick(provider, symbol)?.let { t ->
+            _state.map { it.provider to it.symbol }
+                .distinctUntilChanged()
+                .flatMapLatest { (p, sym) ->
+                    combine(
+                        marketDataRepo.liveVersion().map { marketDataRepo.liveTick(p, sym) },
+                        marketDataRepo.observeCachedSymbol(p, sym),
+                    ) { live, cached -> live to cached }
+                }
+                .collect { (live, cached) ->
                     _state.update { s ->
                         s.copy(
-                            livePrice = t.price,
-                            changePercent24h = t.changePercent24h,
-                            high24h = t.high24h.takeIf { it > 0 },
-                            low24h = t.low24h.takeIf { it > 0 },
-                            quoteVolume24h = t.quoteVolume24h.takeIf { it > 0 },
+                            livePrice = live?.price ?: cached?.price?.takeIf { it > 0 },
+                            changePercent24h = live?.changePercent24h ?: cached?.changePercent24h,
+                            high24h = (live?.high24h ?: cached?.high24h)?.takeIf { it > 0 },
+                            low24h = (live?.low24h ?: cached?.low24h)?.takeIf { it > 0 },
+                            quoteVolume24h = (live?.quoteVolume24h ?: cached?.quoteVolume24h)?.takeIf { it > 0 },
                         )
                     }
                 }
-            }
         }
 
         loadTimeframe(Timeframe.DEFAULT, initial = true)

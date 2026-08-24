@@ -80,6 +80,12 @@ class MarketDataRepository(
         if (provider == null) tickerCacheDao.topByVolumeAll(limit)
         else tickerCacheDao.topByVolume(provider.name, limit)
 
+    /** Osserva una singola riga cache: fallback per le stats di coin NON in watchlist
+     * (il liveTick dell'hub è solo per la watchlist, quindi il coin detail deve
+     * rileggere la cache popolata dal refreshTickers on-open). */
+    fun observeCachedSymbol(provider: ProviderId, symbol: String): Flow<TickerCacheEntity?> =
+        tickerCacheDao.observe(provider.name, symbol)
+
     suspend fun refreshTickers(
         provider: ProviderId,
         symbols: Collection<String>,

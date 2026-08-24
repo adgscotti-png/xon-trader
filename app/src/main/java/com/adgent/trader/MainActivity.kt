@@ -194,17 +194,11 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
                     },
                 )
             }
-            composable(
-                route = "alertEdit?ruleId={ruleId}&symbol={symbol}&provider={provider}",
-                // Query opzionali: i default null rendono obbligatorio solo l'argomento
-                // presente nella navigate() (ruleId di edit, oppure symbol+provider
-                // da coin detail). Il VM riempie i campi dalla regola se c'è ruleId.
-                arguments = listOf(
-                    navArgument("ruleId") { type = NavType.StringType; defaultValue = null },
-                    navArgument("symbol") { type = NavType.StringType; defaultValue = null },
-                    navArgument("provider") { type = NavType.StringType; defaultValue = null },
-                ),
-            ) { entry ->
+            // Query opzionali: senza navArgument dichiarati Navigation lascia null gli
+            // argomenti assenti nella navigate() (ruleId per l'edit, symbol+provider da
+            // coin detail). Mai `defaultValue = null` su NavType.StringType: a graph-build
+            // lancia IllegalArgumentException (crash loop al primo frame).
+            composable("alertEdit?ruleId={ruleId}&symbol={symbol}&provider={provider}") { entry ->
                 val ruleId = entry.arguments?.getString("ruleId")?.toLongOrNull()
                 val symbol = entry.arguments?.getString("symbol")
                 val provider = entry.arguments?.getString("provider")
