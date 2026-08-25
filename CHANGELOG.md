@@ -2,6 +2,20 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [0.3.0] — 2026-08-25
+
+### Added
+- **Batch alert creation** — in the alert editor, turn one starting price into a ladder of 2–20 alerts at a fixed price step above it (e.g. 20 alerts every $1,000 from $90,000). Each alert is independent and editable; the editor previews the generated scale live.
+- **Alert levels on the chart** — a thin green line marks each active price alert's threshold on the candle chart, with the level labelled in the gutter. Levels are excluded from the chart's auto-fit, so an alert far from the current price (e.g. 120k) stays hidden until prices get close.
+- **Realtime feed survives reboot on Android 15** — the foreground service now uses the `specialUse` type, which Android 15 allows to start from `BOOT_COMPLETED`. Before, the boot receiver crashed with `ForegroundServiceStartNotAllowedException` (dataSync), so "alerts even with the app closed" silently broke after a phone restart on Android 15.
+
+### Fixed
+- **Favorite added from a non-default exchange kept the wrong source** — e.g. adding SLX from Kraken showed it in Favorites as OKX because the default provider overrode the stored choice. The stored source now wins unless explicitly overridden or that source is down.
+- **Widget tap opened the last screen** — tapping a widget now deep-links straight to the tapped instrument's chart (cold and warm start) instead of restoring the previously open screen; re-tapping the same coin while it is already open does not stack a duplicate screen.
+
+### Verified
+- Emulator E2E green (25/08): 20-alert ladder (90,000→109,000), chart alert lines inside/outside the visible range with auto-fit unchanged, SLX added from Kraken resolves to Kraken in Favorites, widget deep link on cold and warm start, and a full device reboot with Realtime mode on starts the price feed with no crash.
+
 ## [0.2.9] — 2026-08-24
 
 ### Added

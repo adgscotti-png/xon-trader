@@ -112,7 +112,17 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                 val rows = favs.mapNotNull { fav ->
                     val stored = ProviderId.fromName(fav.provider) ?: ProviderId.BINANCE
                     val pair = marketDataRepo.fromCompact(fav.symbol) ?: return@mapNotNull null
-                    val eff = router.resolve(pair, settings.perCoinProviders, settings.defaultProvider.providerId, health)
+                    // Priorità: override per-coin (scelta esplicita nel coin detail) →
+                    // provider ARCHIVIATO (scelta esplicita al momento del preferito) →
+                    // fallback (default → miglior provider). Il provider archiviato NON
+                    // va scavalcato dal default: un preferito aggiunto da Kraken restava
+                    // su OKX solo perché il default era OKX.
+                    val hasOverride = settings.perCoinProviders.containsKey(pair.key)
+                    val eff = if (hasOverride || !router.isUsable(stored, health)) {
+                        router.resolve(pair, settings.perCoinProviders, settings.defaultProvider.providerId, health)
+                    } else {
+                        stored
+                    }
                     val effCache = byKey["${eff.name}:${fav.symbol}"]
                     val storedCache = byKey["${stored.name}:${fav.symbol}"]
                     val c = effCache ?: storedCache

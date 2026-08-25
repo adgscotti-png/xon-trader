@@ -223,6 +223,7 @@ fun CoinDetailScreen(
                                 // Senza permesso notifiche l'avviso non suonerebbe mai.
                                 if (!notifState.granted) notifState.ensure()
                             },
+                            alertLevels = state.alertLevels,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

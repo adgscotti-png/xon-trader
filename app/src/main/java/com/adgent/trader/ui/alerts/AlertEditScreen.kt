@@ -75,12 +75,29 @@ data class AlertEditUiState(
     val repeatable: Boolean = false,
     val note: String = "",
     val saved: Boolean = false,
+    /** Modalità batch: N avvisi a scala di prezzo fissa sopra il prezzo base. */
+    val batch: Boolean = false,
+    val batchCount: Int = 5,
+    val step: String = "",
 ) {
     val thresholdValue: Double?
         get() = threshold.replace(',', '.').toDoubleOrNull()
 
+    val stepValue: Double?
+        get() = step.replace(',', '.').toDoubleOrNull()
+
     val canSave: Boolean
-        get() = thresholdValue != null && (thresholdValue ?: 0.0) > 0.0
+        get() {
+            val t = thresholdValue ?: return false
+            if (t <= 0.0) return false
+            if (!batch) return true
+            val s = stepValue ?: return false
+            return s > 0.0 && batchCount in 2..MAX_BATCH
+        }
+
+    companion object {
+        const val MAX_BATCH = 20
+    }
 }
 
 /** Editor avviso: simbolo, tipo soglia, ripetizione e nota. Salva su Room. */
@@ -144,25 +161,60 @@ class AlertEditViewModel(
     fun onRepeatable(b: Boolean) = _state.update { it.copy(repeatable = b) }
     fun onNote(n: String) = _state.update { it.copy(note = n.take(120)) }
 
-    /** Salva la regola; se realtime attivo garantisce che il servizio giri. */
+    /** Attiva la modalità batch: la scala è sempre di tipo Above (prezzi crescenti). */
+    fun onBatch(b: Boolean) = _state.update {
+        it.copy(batch = b, type = if (b) AlertType.PRICE_ABOVE else it.type)
+    }
+
+    fun onStep(v: String) =
+        _state.update { it.copy(step = v.filter { c -> c.isDigit() || c == '.' || c == ',' }.take(12)) }
+
+    fun onBatchCount(delta: Int) = _state.update {
+        it.copy(batchCount = (it.batchCount + delta).coerceIn(2, AlertEditUiState.MAX_BATCH))
+    }
+
+    /** Salva la regola (o la scala batch); se realtime attivo garantisce il servizio. */
     fun save(context: Context) {
         val s = state.value
         val threshold = s.thresholdValue ?: return
         viewModelScope.launch {
-            val existing = s.ruleId?.let { runCatching { container.alertRepo.byId(it) }.getOrNull() }
-            val rule = AlertRuleEntity(
-                id = s.ruleId ?: 0L,
-                symbol = s.symbol,
-                type = s.type.name,
-                threshold = threshold,
-                repeatable = s.repeatable,
-                note = s.note.trim(),
-                enabled = true,
-                createdAt = existing?.createdAt ?: System.currentTimeMillis(),
-                lastTriggeredAt = existing?.lastTriggeredAt,
-                provider = s.provider,
-            )
-            container.alertRepo.save(rule)
+            if (s.batch) {
+                val step = s.stepValue ?: return@launch
+                val count = s.batchCount.coerceIn(2, AlertEditUiState.MAX_BATCH)
+                val now = System.currentTimeMillis()
+                // Scala di prezzi crescenti dal livello base: base, base+step, …
+                (0 until count).forEach { i ->
+                    container.alertRepo.save(
+                        AlertRuleEntity(
+                            id = 0L,
+                            symbol = s.symbol,
+                            type = AlertType.PRICE_ABOVE.name,
+                            threshold = threshold + i * step,
+                            repeatable = s.repeatable,
+                            note = s.note.trim(),
+                            enabled = true,
+                            createdAt = now + i,
+                            lastTriggeredAt = null,
+                            provider = s.provider,
+                        )
+                    )
+                }
+            } else {
+                val existing = s.ruleId?.let { runCatching { container.alertRepo.byId(it) }.getOrNull() }
+                val rule = AlertRuleEntity(
+                    id = s.ruleId ?: 0L,
+                    symbol = s.symbol,
+                    type = s.type.name,
+                    threshold = threshold,
+                    repeatable = s.repeatable,
+                    note = s.note.trim(),
+                    enabled = true,
+                    createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                    lastTriggeredAt = existing?.lastTriggeredAt,
+                    provider = s.provider,
+                )
+                container.alertRepo.save(rule)
+            }
             if (container.settingsRepo.settings.first().dataMode == DataMode.REALTIME) {
                 PriceFeedController.start(context)
             }
@@ -277,22 +329,26 @@ fun AlertEditScreen(
         }
 
         // ---------- Tipo ----------
-        SectionTitle("When to alert me", "The condition that triggers the notification")
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
-            listOf(AlertType.PRICE_ABOVE, AlertType.PRICE_BELOW).forEach { t ->
-                FilterChip(
-                    selected = state.type == t,
-                    onClick = { vm.onType(t) },
-                    label = { Text(t.label) },
-                )
+        if (!state.batch) {
+            SectionTitle("When to alert me", "The condition that triggers the notification")
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(horizontal = 16.dp)) {
+                listOf(AlertType.PRICE_ABOVE, AlertType.PRICE_BELOW).forEach { t ->
+                    FilterChip(
+                        selected = state.type == t,
+                        onClick = { vm.onType(t) },
+                        label = { Text(t.label) },
+                    )
+                }
             }
+            Spacer(Modifier.height(8.dp))
         }
-        Spacer(Modifier.height(8.dp))
 
         // ---------- Soglia ----------
         SectionTitle(
-            "Threshold price",
-            when (state.type) {
+            if (state.batch) "Starting price (lowest level)"
+            else "Threshold price",
+            if (state.batch) "One alert for every price step above this value"
+            else when (state.type) {
                 AlertType.PRICE_ABOVE -> "You get the notification if the price rises above this value"
                 AlertType.PRICE_BELOW -> "You get the notification if the price falls below this value"
                 else -> ""
@@ -308,6 +364,81 @@ fun AlertEditScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp),
         )
+
+        // ---------- Batch: N avvisi a scala di prezzo fissa ----------
+        if (ruleId == null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Create multiple alerts", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        "Turns one starting price into a ladder: N alerts at fixed price steps above it.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = state.batch, onCheckedChange = vm::onBatch)
+            }
+            if (state.batch) {
+                // Numero di avvisi (2-20).
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Number of alerts", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            "From 2 to 20. Each one is a separate alert you can edit or delete.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { vm.onBatchCount(-1) }, enabled = state.batchCount > 2) {
+                        Text("−", style = MaterialTheme.typography.titleLarge)
+                    }
+                    Text("${state.batchCount}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    TextButton(onClick = { vm.onBatchCount(+1) }, enabled = state.batchCount < AlertEditUiState.MAX_BATCH) {
+                        Text("+", style = MaterialTheme.typography.titleLarge)
+                    }
+                }
+                // Distanza fissa tra un avviso e l'altro.
+                OutlinedTextField(
+                    value = state.step,
+                    onValueChange = vm::onStep,
+                    placeholder = { Text("e.g. 1000") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    label = { Text("Price step between alerts") },
+                    supportingText = {
+                        Text("The gap in price between two consecutive alerts, e.g. 1000 = one every \$1,000.")
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp),
+                )
+                // Anteprima della scala generata.
+                state.thresholdValue?.let { base ->
+                    state.stepValue?.let { st ->
+                        val n = state.batchCount.coerceIn(2, AlertEditUiState.MAX_BATCH)
+                        val last = base + (n - 1) * st
+                        Text(
+                            "You'll get $n alerts: " +
+                                (0 until n).joinToString(" · ") { i -> Format.price(base + i * st) },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 3,
+                            modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+                        )
+                    }
+                }
+            }
+        }
 
         // ---------- Ripetibile + nota ----------
         Row(
@@ -355,7 +486,7 @@ fun AlertEditScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = Color.White),
                 modifier = Modifier.weight(1f),
             ) {
-                Text("Save alert")
+                Text(if (state.batch) "Create ${state.batchCount} alerts" else "Save alert")
             }
             if (ruleId != null) {
                 TextButton(onClick = { vm.delete(context) }, modifier = Modifier.weight(1f)) {

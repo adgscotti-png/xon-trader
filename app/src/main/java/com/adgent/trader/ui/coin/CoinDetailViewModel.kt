@@ -48,6 +48,8 @@ data class CoinDetailUiState(
     val offline: Boolean = false,
     /** Messaggio one-shot per la UI (avviso creato dal grafico). */
     val quickAlertMsg: String? = null,
+    /** Soglie degli avvisi prezzo attivi (solo sopra/sotto) di questa coin+provider. */
+    val alertLevels: List<Double> = emptyList(),
 )
 
 /**
@@ -118,6 +120,25 @@ class CoinDetailViewModel(
         // Fallback REST per le statistiche se il WS non è ancora arrivato.
         viewModelScope.launch {
             marketDataRepo.refreshTickers(provider, listOf(symbol), force = true)
+        }
+
+        // Linee avviso sul grafico: soglie degli avvisi prezzo ATTIVI della coin
+        // sul provider corrente (segue anche gli switch di fonte).
+        viewModelScope.launch {
+            combine(
+                _state.map { it.provider to it.symbol }.distinctUntilChanged(),
+                container.alertRepo.observeAll(),
+            ) { (p, sym), rules -> p to (sym to rules) }
+                .collect { (p, pair) ->
+                    val (sym, rules) = pair
+                    val levels = rules
+                        .filter {
+                            it.enabled && it.symbol == sym && it.provider == p.name &&
+                                (it.type == AlertType.PRICE_ABOVE.name || it.type == AlertType.PRICE_BELOW.name)
+                        }
+                        .map { it.threshold }
+                    _state.update { s -> s.copy(alertLevels = levels) }
+                }
         }
     }
 

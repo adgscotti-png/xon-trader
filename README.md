@@ -56,8 +56,10 @@ volume; afterwards everything is warm.
 
 ## Releases
 
-- 0.2.9 — 7 market providers + per-coin source picker + Auto failover
+- 0.3.0 — batch alerts, alert lines on the chart, favorites source fix,
+  widget deep link fix, realtime feed survives reboot on Android 15
   (this release). See [`CHANGELOG.md`](CHANGELOG.md).
+- 0.2.9 — 7 market providers + per-coin source picker + Auto failover.
 - History back to the 0.2.0 MVP in [`CHANGELOG.md`](CHANGELOG.md) and
   [`PLAN.md`](PLAN.md).
 

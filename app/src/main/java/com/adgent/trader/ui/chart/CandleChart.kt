@@ -202,6 +202,11 @@ fun CandleChart(
     crosshairColor: Color = Color.White.copy(alpha = 0.55f),
     /** Non-null: abilita la creazione rapida avvisi con pressione prolungata. */
     onCreateAlertAtPrice: ((price: Double, above: Boolean) -> Unit)? = null,
+    /** Soglie degli avvisi attivi di questa coin+provider: linea verde sottile al
+     *  livello. NON entrano nell'auto-fit (solo il prezzo decide il range): fuori
+     *  dal range visibile la linea semplicemente non si disegna finché i prezzi
+     *  non si avvicinano. */
+    alertLevels: List<Double> = emptyList(),
 ) {
     val window = remember { ChartWindow() }
     val crosshairIdx = remember { mutableIntStateOf(-1) }
@@ -398,6 +403,7 @@ fun CandleChart(
                 livePrice = livePrice,
                 crosshairIdx = crosshairIdx.intValue,
                 alertPrice = alertPrice,
+                alertLevels = alertLevels,
                 upColor = upColor,
                 downColor = downColor,
                 gridColor = gridColor,
@@ -456,6 +462,7 @@ private fun DrawScope.drawTradingView(
     livePrice: Double?,
     crosshairIdx: Int,
     alertPrice: Double?,
+    alertLevels: List<Double>,
     upColor: Color,
     downColor: Color,
     gridColor: Color,
@@ -662,6 +669,34 @@ private fun DrawScope.drawTradingView(
         drawRoundRect(bg, Offset(w - tagW - 3f, ly - lbl.size.height / 2 - 4f),
             Size(tagW, lbl.size.height + 8f), CornerRadius(5f))
         drawText(lbl, topLeft = Offset(w - lbl.size.width - 9f, ly - lbl.size.height / 2))
+    }
+
+    // --- linee degli avvisi attivi (sottili, verdi, mai nell'auto-fit) ---
+    if (alertLevels.isNotEmpty()) {
+        val alertStyle = TextStyle(fontSize = 12.sp, color = MarketGreen)
+        var lastTagY = -Float.MAX_VALUE
+        alertLevels.filter { it > lo && it < hi }.distinct().sorted().forEach { lvl ->
+            val ay = y(lvl)
+            drawLine(
+                MarketGreen.copy(alpha = 0.9f),
+                Offset(layout.plotLeft, ay),
+                Offset(layout.plotRight, ay),
+                strokeWidth = 1.2f,
+            )
+            // Tag prezzo nel gutter: salta se finirebbe sul tag precedente.
+            if (abs(ay - lastTagY) >= 26f) {
+                val lbl = textMeasurer.measure(tagPrice(lvl), alertStyle)
+                val tagW = minOf(lbl.size.width + 12f, gutter - 4f).coerceAtLeast(20f)
+                drawRoundRect(
+                    MarketGreen.copy(alpha = 0.16f),
+                    Offset(w - tagW - 3f, ay - lbl.size.height / 2 - 4f),
+                    Size(tagW, lbl.size.height + 8f),
+                    CornerRadius(5f),
+                )
+                drawText(lbl, topLeft = Offset(w - lbl.size.width - 9f, ay - lbl.size.height / 2))
+                lastTagY = ay
+            }
+        }
     }
 
     // --- linea avviso in piazzamento (tag nel gutter) ---

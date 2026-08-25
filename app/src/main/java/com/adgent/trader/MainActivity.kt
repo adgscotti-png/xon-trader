@@ -10,6 +10,10 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.CandlestickChart
@@ -46,20 +50,26 @@ import com.adgent.trader.ui.theme.AdgentTraderTheme
 // FragmentActivity: richiesta da androidx.biometric.BiometricPrompt per il blocco app.
 class MainActivity : FragmentActivity() {
 
+    /** Ultimo intent ricevuto: condiviso con la composizione così i deep link
+     *  di onNewIntent (widget/notifiche) ricollegano la navigazione. */
+    private var pendingIntent by mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        pendingIntent = intent
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.dark(Color.Transparent.toArgb()),
             navigationBarStyle = SystemBarStyle.dark(Color.Transparent.toArgb()),
         )
         setContent {
-            AdgentApp(handleIntent = intent)
+            AdgentApp(handleIntent = pendingIntent)
         }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        pendingIntent = intent
     }
 }
 
@@ -99,6 +109,25 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
         TopLevelItem("settings", "Settings", Icons.Outlined.Settings),
     )
     val isTopLevel = tabs.any { it.route == currentRoute }
+
+    // Deep link da widget/notifiche (adgent://coin/…): il NavHost consuma già il
+    // deep link di COLD start; qui gestiamo anche gli intent successivi
+    // (onNewIntent con app in background → prima apriva l'ultima schermata).
+    // Guardia: se siamo già sul dettaglio della STESSA coin+provider non ripetiamo.
+    LaunchedEffect(handleIntent) {
+        val i = handleIntent ?: return@LaunchedEffect
+        if (i.action != Intent.ACTION_VIEW) return@LaunchedEffect
+        val data = i.data ?: return@LaunchedEffect
+        val targetSymbol = data.pathSegments?.lastOrNull() ?: return@LaunchedEffect
+        val targetProvider = data.getQueryParameter("provider") ?: "BINANCE"
+        val entry = navController.currentBackStackEntry
+        if (navController.currentDestination?.route?.startsWith("coin/") == true) {
+            val curSym = entry?.arguments?.getString("symbol")
+            val curProv = entry?.arguments?.getString("provider") ?: "BINANCE"
+            if (curSym == targetSymbol && curProv == targetProvider) return@LaunchedEffect
+        }
+        navController.handleDeepLink(i)
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
