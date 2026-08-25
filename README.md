@@ -20,6 +20,10 @@ no account, no API key, no backend, no tracking.
 
 </div>
 
+> **Open beta.** XON Trader is released as a beta — the core features work, and it
+> is still being shaped by real-world feedback. Found a bug or want a feature?
+> Send a DM to **[@XONTrader](https://x.com/XONTrader) on X** — every message is read.
+
 ---
 
 ## Why XON Trader
