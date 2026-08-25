@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO dal maintainer 22/08/2026**
-`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. maintainer 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: ✅ README marketing + landing con avviso BETA + contatto @XONTrader (README commit 6f3de83, landing verificata) — repo resta PRIVATE finché maintainer dà l'ok`
+`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. maintainer 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ✅ README marketing + landing con avviso BETA + @XONTrader (6f3de83). ✅ REPO PUBBLICO 25/08 (56f7efc scrub privacy; PATCH visibility; download landing verificato 200 anonimo)`
 
 ---
 
@@ -554,10 +554,18 @@ via F-Droid. Invece:
    URL 404 per i visitatori anonimi — funzionano appena maintainer dà l'ok ad
    aprirlo (allora aggiornare il pin versione a ogni release). Verificato: 0
    riferimenti al nome, immagini HTTP 200, nginx serve i file aggiornati.
-3. **Repo resta PRIVATE** finché maintainer non rivede e dà l'ok per aprirlo.
-   ⚠️ Prima di aprire: `PLAN.md` e `docs/play-listing.md` contengono il nome
-   maintainer (documentazione interna in italiano) — valutare se ripulire prima del
-   go-live pubblico.
+3. ✅ **Repo PUBBLICO il 25/08/2026** (ok maintainer). Prima dell'apertura:
+   rimosso `landing/index.html` stantio dal repo (footer vecchio con nome e
+   v0.2.9 — la landing live sta fuori repo), e ripuliti i riferimenti personali
+   (nomi → `maintainer`) in `PLAN.md`, `docs/play-listing.md`,
+   `research/ui-ref/_gen_adgt.py`, `scripts/emu-verify-031.sh`, `.gitignore`
+   (commit `56f7efc`). PATCH API `visibility: public`. **Verificato anonimo
+   (senza auth)**: README raw 200, pagina repo 200, releases 200,
+   **download diretto v0.3.2 → 200** (redirect all'asset) → le CTA della
+   landing ora funzionano per tutti. ⚠️ `docker/build.sh` contiene ancora i
+   path host reali `/home/<utente>/projects/...` (funzionali per il build) →
+   il nome utente del server resta visibile nel repo pubblico; da
+   parametrizzare se si vuole eliminarlo del tutto.
 4. **Avviso BETA + contatto @XONTrader ben evidente** (richiesta maintainer 25/08),
    su ENTRAMBE le superfici:
    - **Landing** `xon.adg-ent.com`: barra gradient sopra la nav con pill `Beta`
