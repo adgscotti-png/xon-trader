@@ -11,16 +11,22 @@ import com.adgent.trader.core.network.toModel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.Locale
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Adapter Binance sul port [MarketDataProvider].
- * REST: data-api.binance.vision · WS: !miniTicker@arr (stream globale, filtro
- * client-side via [ProviderWebSocket]). Simboli nativi == canonici (BTCUSDT).
+ * REST: data-api.binance.vision · WS: stream combinato con sottoscrizione
+ * PER-SIMBOLO `@miniTicker` (un solo simbolo per frame, niente stream globale
+ * da ~2000 simboli/sec). Simboli nativi == canonici (BTCUSDT).
  */
 class BinanceProvider(
     private val api: BinanceApi,
@@ -77,11 +83,28 @@ class BinanceProvider(
     private inner class BinanceStream(
         client: OkHttpClient,
     ) : ProviderWebSocket(WS_URL, client) {
-        override fun buildRequest(): Request =
-            Request.Builder().url("$baseUrl/stream?streams=!miniTicker@arr").build()
+        /** id univoco crescente: Binance rifiuta id duplicati nelle SUBSCRIBE. */
+        private val msgId = AtomicInteger(0)
 
-        override fun subscribeMessage(symbols: Set<String>): String? = null
-        override fun unsubscribeMessage(symbols: Set<String>): String? = null
+        /** Endpoint combinato: la sottoscrizione avviene via messaggi wire, non via query. */
+        override fun buildRequest(): Request =
+            Request.Builder().url("$baseUrl/stream").build()
+
+        override fun subscribeMessage(symbols: Set<String>): String? =
+            if (symbols.isEmpty()) null else subMessage("SUBSCRIBE", symbols)
+
+        override fun unsubscribeMessage(symbols: Set<String>): String? =
+            if (symbols.isEmpty()) null else subMessage("UNSUBSCRIBE", symbols)
+
+        /** {"method":"SUBSCRIBE","params":["btcusdt@miniTicker",...],"id":N} — stream minuscoli. */
+        private fun subMessage(method: String, symbols: Set<String>): String {
+            val params = JsonArray(symbols.map { JsonPrimitive("${it.lowercase(Locale.ROOT)}@miniTicker") })
+            return buildJsonObject {
+                put("method", method)
+                put("params", params)
+                put("id", msgId.incrementAndGet())
+            }.toString()
+        }
 
         override fun parseFrame(text: String): List<PriceTick> {
             val root = json.parseToJsonElement(text).jsonObject

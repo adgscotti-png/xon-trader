@@ -5,19 +5,20 @@ import android.content.Intent
 import android.os.IBinder
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.notifications.Notifications
-import com.adgent.trader.core.provider.ProviderId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 
 /**
- * Servizio foreground "Realtime": mantiene attivi gli stream live della
- * watchlist anche con l'app in background e valuta le regole avviso sui tick
- * ricevuti (provider della regola). Notifica persistente discreta (canale
- * "Feed realtime", importanza MIN).
+ * Servizio foreground "Realtime": mantiene attivi gli stream live in background
+ * (ridotti ai soli simboli con avvisi via [com.adgent.trader.core.provider.PriceFeedHub])
+ * e notifica SOLO i valicamenti emessi dal hub ([PriceFeedHub.alertTriggers]).
+ * Consumatore passivo di eventi (network-driven): tra un tick e l'altro il
+ * processo dorme (Deep Sleep). Notifica persistente discreta (canale "Feed
+ * realtime", importanza MIN).
  */
 class PriceFeedService : Service() {
 
@@ -27,7 +28,7 @@ class PriceFeedService : Service() {
         super.onCreate()
         Notifications.ensureChannels(this)
         startForeground(SERVICE_NOTIF_ID, Notifications.serviceNotification(this, "Price alerts active"))
-        observeAndEvaluate()
+        observeAlerts()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -37,45 +38,31 @@ class PriceFeedService : Service() {
                 return START_NOT_STICKY
             }
         }
+        // Fix START_STICKY: se l'utente è passato a RISPARMIO mentre il sistema
+        // stava riavviando il servizio, NON resuscitarlo (gli alert tornano al worker).
+        if (!PriceFeedController.isRealtime(this)) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return START_STICKY
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        runCatching { appContainer.priceFeedHub.setForeground(false) }
+        // Il hub NON va toccato qui: spegnendo il feed in foreground (es.
+        // REALTIME→SAVER con app in primo piano) chiuderebbe anche gli stream
+        // UI della watchlist. Lo stato lo gestisce LiveFeedLifecycleController.
         scope.cancel()
         super.onDestroy()
     }
 
-    private fun observeAndEvaluate() {
+    private fun observeAlerts() {
         val container = appContainer
-
-        // Ogni volta che cambiano le regole o arrivano tick, rivaluta le regole attive.
         scope.launch {
-            combine(
-                container.alertRepo.observeAll(),
-                container.marketDataRepo.liveVersion(),
-            ) { rules, _ ->
-                val enabled = rules.filter { it.enabled }
-                if (enabled.isEmpty()) return@combine
-                val now = System.currentTimeMillis()
-                enabled.forEach { rule ->
-                    val provider = ProviderId.fromName(rule.provider) ?: ProviderId.BINANCE
-                    val tick = container.marketDataRepo.liveTick(provider, rule.symbol) ?: return@forEach
-                    when (AlertEngine.evaluate(rule, tick, now)) {
-                        AlertEngine.Verdict.SKIP -> Unit
-                        AlertEngine.Verdict.FIRE_ONCE -> {
-                            Notifications.notifyAlert(applicationContext, rule, tick)
-                            container.alertRepo.markTriggered(rule.id, now, enabled = false)
-                        }
-                        AlertEngine.Verdict.FIRE_REPEATABLE -> {
-                            Notifications.notifyAlert(applicationContext, rule, tick)
-                            container.alertRepo.markTriggered(rule.id, now, enabled = true)
-                        }
-                    }
-                }
-            }.collect { /* valutazione già eseguita nel combine */ }
+            container.priceFeedHub.alertTriggers.collect { trig ->
+                Notifications.notifyAlert(applicationContext, trig.rule, trig.tick)
+            }
         }
     }
 

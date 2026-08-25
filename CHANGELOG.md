@@ -2,6 +2,18 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [Unreleased]
+
+### Changed
+- **Background battery** — in Realtime mode the app used to keep up to 7 exchange sockets open while in the background, subscribe to Binance's whole-market feed (~2000 symbols/sec) and write every tick to the database. Now, when the app leaves the foreground it drops to a single socket (per exchange) subscribed only to the symbols that have active price alerts, Binance subscribes per-symbol `@miniTicker` instead of the global feed, alert evaluation runs per symbol with an in-memory cooldown (no database write per tick) and the foreground service only notifies on actual crossings.
+- **Widget refresh debounce** — tapping the ↻ refresh button twice within 2 seconds only performs one network fetch.
+
+### Removed
+- **Unused `WAKE_LOCK` permission** — nothing in the app ever acquired a wake lock; the permission is gone.
+
+### Notes
+- In Realtime mode while the app is backgrounded, ticker prices no longer write to the database, so home-screen widgets refresh on the 15-minute worker (as they already did in Battery Saver mode) or when you tap ↻.
+
 ## [0.3.3] — 2026-08-25
 
 ### Added

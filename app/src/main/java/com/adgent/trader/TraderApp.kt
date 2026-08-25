@@ -54,7 +54,7 @@ class AppContainer(app: Application) {
 
     val autoProviderRouter = AutoProviderRouter(mapper, providerRegistry)
     val priceFeedHub = PriceFeedHub(
-        providerRegistry, watchlistRepo, settingsRepo, autoProviderRouter, mapper,
+        providerRegistry, watchlistRepo, settingsRepo, alertRepo, autoProviderRouter, mapper,
         db.tickerCacheDao(), appScope,
     )
     val marketDataRepo = MarketDataRepository(

@@ -10,7 +10,7 @@ import com.adgent.trader.core.model.PriceTick
  */
 object AlertEngine {
 
-    private const val COOLDOWN_MS = 60_000L
+    const val COOLDOWN_MS = 60_000L
 
     /**
      * Restituisce le regole soddisfatte da questo tick, con l'azione da eseguire:

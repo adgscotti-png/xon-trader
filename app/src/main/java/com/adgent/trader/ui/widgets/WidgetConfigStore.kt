@@ -53,6 +53,7 @@ object WidgetConfigStore {
     private const val FILE = "adgent_widget_config"
     private const val KEY_REFRESH_MINUTES = "refresh_minutes"
     private const val KEY_LAST_UPDATE = "last_update_at"
+    private const val KEY_LAST_MANUAL_REFRESH = "last_manual_refresh_at"
 
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -113,4 +114,14 @@ object WidgetConfigStore {
 
     fun lastUpdate(context: Context): Long =
         prefs(context).getLong(KEY_LAST_UPDATE, 0L)
+
+    // ---------- Debounce refresh manuale (pulsantino ↻ del widget) ----------
+
+    /** Segna il refresh manuale (prima della fetch: i tap rapidi vengono ignorati). */
+    fun stampManualRefresh(context: Context) {
+        prefs(context).edit().putLong(KEY_LAST_MANUAL_REFRESH, System.currentTimeMillis()).apply()
+    }
+
+    fun lastManualRefresh(context: Context): Long =
+        prefs(context).getLong(KEY_LAST_MANUAL_REFRESH, 0L)
 }

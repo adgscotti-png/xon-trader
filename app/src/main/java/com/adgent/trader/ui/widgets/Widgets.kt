@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
@@ -142,6 +143,25 @@ private fun paletteFor(style: AppStyle): WidgetPalette = when (style) {
     )
 }
 
+/**
+ * Contenitore esterno widget. In Neon l'anello ciano 1dp NON ha cornerRadius
+ * proprio: il launcher (Android 12+) arrotonda il widget con una maschera più
+ * ampia, quindi un bordo disegnato all'angolo verrebbe ritagliato via. Senza
+ * angolo nostro il contorno segue la stondatura di sistema e resta visibile
+ * anche agli angoli. In Classic resta il navy arrotondato di sempre.
+ */
+private fun outerShell(pal: WidgetPalette): GlanceModifier {
+    val m = GlanceModifier.fillMaxSize().background(ColorProvider(pal.border ?: pal.bg))
+    return if (pal.border != null) m.padding(all = 1.dp) else m.cornerRadius(14.dp)
+}
+
+/** Box interno: sfondo + padding del contenuto, con l'angolo solo in Classic. */
+private fun innerShell(pal: WidgetPalette, horizontal: Dp, vertical: Dp): GlanceModifier {
+    var m = GlanceModifier.fillMaxSize().background(ColorProvider(pal.bg))
+    if (pal.border == null) m = m.cornerRadius(14.dp)
+    return m.padding(horizontal = horizontal, vertical = vertical)
+}
+
 @Composable
 private fun priceStyle(size: Int) = TextStyle(
     color = ColorProvider(TextMain),
@@ -206,20 +226,8 @@ class TickerWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .background(ColorProvider(pal.border ?: pal.bg))
-                        .cornerRadius(14.dp)
-                        .padding(all = if (pal.border != null) 1.dp else 0.dp),
-                ) {
-                    Box(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .background(ColorProvider(pal.bg))
-                            .cornerRadius(if (pal.border != null) 13.dp else 14.dp)
-                            .padding(10.dp),
-                    ) {
+                Box(modifier = outerShell(pal)) {
+                    Box(modifier = innerShell(pal, horizontal = 10.dp, vertical = 10.dp)) {
                     if (row == null) {
                         Text(
                             "Open XON Trader to load data",
@@ -344,20 +352,8 @@ class WatchlistWidget : GlanceAppWidget() {
 
         provideContent {
             GlanceTheme {
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .background(ColorProvider(pal.border ?: pal.bg))
-                        .cornerRadius(14.dp)
-                        .padding(all = if (pal.border != null) 1.dp else 0.dp),
-                ) {
-                    Box(
-                        modifier = GlanceModifier
-                            .fillMaxSize()
-                            .background(ColorProvider(pal.bg))
-                            .cornerRadius(if (pal.border != null) 13.dp else 14.dp)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                    ) {
+                Box(modifier = outerShell(pal)) {
+                    Box(modifier = innerShell(pal, horizontal = 12.dp, vertical = 8.dp)) {
                     Column(
                         modifier = GlanceModifier.fillMaxSize(),
                     ) {
@@ -445,7 +441,8 @@ class WatchlistWidgetReceiver : GlanceAppWidgetReceiver() {
 
 /**
  * Refresh immediato scatenato dal pulsantino ↻ del widget: scarica i prezzi
- * (forza, bypass TTL), aggiorna il timestamp visibile e ridisegna.
+ * (forza, bypass TTL), aggiorna il timestamp visibile e ridisegna. Debounce 2s
+ * anti-tap-rapidi: un tap entro la finestra dall'ultimo non rifà il fetch.
  */
 class WidgetRefreshAction : ActionCallback {
     override suspend fun onAction(
@@ -454,6 +451,9 @@ class WidgetRefreshAction : ActionCallback {
         parameters: ActionParameters,
     ) {
         val ctx = context.applicationContext
+        val now = System.currentTimeMillis()
+        if (now - WidgetConfigStore.lastManualRefresh(ctx) < MANUAL_REFRESH_DEBOUNCE_MS) return
+        WidgetConfigStore.stampManualRefresh(ctx)
         runCatching {
             val container = ctx.appContainer
             val pairs = container.watchlistRepo.all().map { it.provider to it.symbol } +
@@ -469,5 +469,9 @@ class WidgetRefreshAction : ActionCallback {
         WidgetConfigStore.stampUpdate(ctx)
         runCatching { TickerWidget().updateAll(ctx) }
         runCatching { WatchlistWidget().updateAll(ctx) }
+    }
+
+    companion object {
+        private const val MANUAL_REFRESH_DEBOUNCE_MS = 2_000L
     }
 }
