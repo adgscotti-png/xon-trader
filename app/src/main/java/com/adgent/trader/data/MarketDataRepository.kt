@@ -209,6 +209,7 @@ class ChartRepository(
 
     private fun maxAgeMs(tf: Timeframe): Long = when (tf) {
         Timeframe.M1 -> 3L
+        Timeframe.M5 -> 5L
         Timeframe.M15 -> 7L
         Timeframe.H1 -> 30L
         Timeframe.H4 -> 120L

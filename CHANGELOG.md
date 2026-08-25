@@ -2,6 +2,18 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [0.3.1] — 2026-08-25
+
+### Changed
+- **Compact market cards** — the coin cards in the Markets grid drop the "24h H / 24h L / Vol" footer row (those stats are already on the coin detail), so more pairs fit per screen; card height shrinks from 150dp to 120dp.
+- **5m chart timeframe** — a new 5-minute candle interval sits between 1m and 15m on every exchange (Binance, Bybit, Kraken, Coinbase, OKX, Bitfinex, KuCoin), and the default chart timeframe is now 15m instead of 1h.
+
+### Fixed
+- **Gainers/Losers rankings started from the wrong place** — right after launch the market cache grows from a few watchlist pairs to the full market, and the grid kept its scroll anchored to the previously first-visible coin, hiding the newly inserted rows above it. Result: the Losers tab looked like it "started from the bottom" (stablecoins / mid-list pairs) instead of the real biggest losers, and Gainers the same in reverse. The grid now resets to the top whenever the ranking changes (filter/provider switch or a new top-ranked pair), so both tabs always open on the actual best/worst movers.
+
+### Verified
+- Emulator E2E green (25/08): no "24h H/L" in the markets grid; 5m chip present on the chart and default 15m confirmed (96 × 15m candles loaded); Losers opens on the real biggest loser (HEMI −22%) and Gainers on the real biggest gainer (ONG +42%), both lists monotonic.
+
 ## [0.3.0] — 2026-08-25
 
 ### Added

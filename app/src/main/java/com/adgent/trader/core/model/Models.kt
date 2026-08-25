@@ -48,6 +48,7 @@ data class PriceTick(
 /** Timeframe supportati dal grafico. */
 enum class Timeframe(val binanceInterval: String, val label: String, val defaultLimit: Int) {
     M1("1m", "1m", 1000),
+    M5("5m", "5m", 300),
     M15("15m", "15m", 96),
     H1("1h", "1h", 168),
     H4("4h", "4h", 180),
@@ -57,7 +58,7 @@ enum class Timeframe(val binanceInterval: String, val label: String, val default
     ;
 
     companion object {
-        val DEFAULT = H1
+        val DEFAULT = M15
     }
 }
 

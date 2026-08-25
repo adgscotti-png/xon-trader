@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -59,7 +60,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.adgent.trader.core.common.Format
 import com.adgent.trader.data.MarketRow
 import com.adgent.trader.data.ProviderSelection
 import com.adgent.trader.ui.appViewModel
@@ -67,8 +67,6 @@ import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.components.CoinBadge
 import com.adgent.trader.ui.components.PriceText
 import com.adgent.trader.ui.components.Sparkline
-import com.adgent.trader.ui.theme.MarketGreen
-import com.adgent.trader.ui.theme.MarketRed
 import kotlinx.coroutines.delay
 
 /**
@@ -129,6 +127,11 @@ fun MarketsScreen(
                     state.rows.isEmpty() && state.offlineSinceMs != null -> EmptyOffline(vm::retry)
                     else -> MarketGrid(
                         rows = state.rows,
+                        // Quando cambia il ranking (filtro/provider) o si sposta il primo
+                        // risultato (la cache si riempie da parziale a mercato pieno) la
+                        // griglia deve tornare in cima: LazyGrid ancora lo scroll alla key
+                        // del primo item visibile e "nasconde" i nuovi item sopra di esso.
+                        resetKey = "${state.filter}:${state.provider.providerId}:${state.rows.firstOrNull()?.let { "${it.provider.name}:${it.symbol}" }}",
                         onOpenCoin = onOpenCoin,
                         onToggleFavorite = vm::toggleFavorite,
                         showProvider = state.provider == ProviderSelection.AUTO,
@@ -262,12 +265,16 @@ private fun FilterChips(selected: MarketFilter, onSelect: (MarketFilter) -> Unit
 @Composable
 private fun MarketGrid(
     rows: List<MarketRow>,
+    resetKey: String,
     onOpenCoin: (String, String) -> Unit,
     onToggleFavorite: (MarketRow) -> Unit,
     showProvider: Boolean,
     showFavoriteToggle: Boolean = false,
 ) {
+    val gridState = rememberLazyGridState()
+    LaunchedEffect(resetKey) { gridState.scrollToItem(0) }
     LazyVerticalGrid(
+        state = gridState,
         columns = GridCells.Fixed(2),
         contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 96.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -313,7 +320,7 @@ private fun MarketCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp)
+                .height(120.dp)
                 .padding(12.dp),
         ) {
             // Riga superiore: badge, nome/simbolo, sparkline (o toggle preferito in ricerca).
@@ -391,40 +398,7 @@ private fun MarketCard(
                 ChangeBadge(percent = row.changePercent24h, compact = true)
             }
 
-            Spacer(Modifier.height(10.dp))
-
-            // Mini-statistiche 24h in fondo alla card: massimo, minimo, volume.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                CardStat("24h H", Format.price(row.high24h), MarketGreen, Modifier.weight(1f))
-                CardStat("24h L", Format.price(row.low24h), MarketRed, Modifier.weight(1f))
-                CardStat("Vol", Format.compact(row.quoteVolume24h), null, Modifier.weight(1f))
-            }
         }
-    }
-}
-
-@Composable
-private fun CardStat(
-    label: String,
-    value: String,
-    valueColor: Color?,
-    modifier: Modifier = Modifier,
-) {
-    Column(modifier) {
-        Text(
-            label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Spacer(Modifier.height(1.dp))
-        Text(
-            value,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = valueColor ?: MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -465,6 +439,7 @@ private fun SearchResults(
     }
     MarketGrid(
         rows = results,
+        resetKey = "search:${results.firstOrNull()?.let { "${it.provider.name}:${it.symbol}" }}",
         onOpenCoin = onOpenCoin,
         onToggleFavorite = onToggleFavorite,
         showProvider = true,
