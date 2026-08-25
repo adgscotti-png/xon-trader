@@ -436,3 +436,87 @@ deep-link/theme/db. Eventuale rinomina package = ondata separata + migrazione.
 
 **Release 0.2.8** (versionCode 10) — ⏳ **non ancora pushato**: Andrea ha chiesto
 di aspettare (altri cambi prima della pubblicazione).
+
+## 14. Ondata 0.3.1 — UI Andrea (25/08/2026) — RELEASE
+
+4 modifiche richieste da Andrea sulla UX:
+
+### 1. Card Markets più corte (più coppie per schermata)
+Rimossa la riga footer `24h H / 24h L / Vol` (dati già nel coin detail),
+altezza card `150dp → 120dp`, rimossi import morti (`Format`, `MarketGreen`,
+`MarketRed`) e la composable `CardStat`.
+
+### 2. Timeframe grafico 5m + default 15m
+- `Timeframe.M5("5m", 300)` tra M1 e M15 (`Models.kt`).
+- `intervalFor` per tutti e 7 i provider (`Timeframes.kt`): Binance `5m`,
+  Bybit `5`, Kraken `5`, Coinbase `300`, OKX `5m`, Bitfinex `5m`, KuCoin `5min`.
+- `maxAgeMs` cache klines: `M5 -> 5L` (`MarketDataRepository.kt`).
+- Default grafico: `H1 → M15` (verificato: 96 candele 15m = 24h).
+
+### 3. FIX CRITICO: Gainers/Losers "partono dal basso"
+**Sintomo**: dopo l'avvio la tab Losers mostrava una fascia a metà lista
+(stablecoin, ~0%) invece dei veri peggiori — come se partisse dal basso.
+**Root cause**: la `LazyVerticalGrid` ancora lo scroll alla **key del primo
+item visibile**. Quando la cache cresce da parziale (solo le 5 coppie della
+watchlist di default) a mercato pieno (~120 righe) — cosa che succede 30-40s
+dopo il primo avvio perché `bootstrap` aspetta `ensureCatalog` (exchangeInfo
+grande) poi `refreshTopMarket` — la key del primo item si sposta da indice 0
+a ~indice 10 nella lista ordinata e Compose la tiene in cima al viewport,
+nascondendo le righe appena inserite SOPRA. Non era un bug di ordinamento:
+`applyFilter` ordinava correttamente.
+**Fix**: `rememberLazyGridState` + `LaunchedEffect(resetKey) { scrollToItem(0) }`,
+dove `resetKey = filter:provider:firstRowKey` — la griglia torna in cima a ogni
+cambio di ranking (filtro/provider o nuovo primo risultato). Applicato anche
+alla ricerca (`resetKey = "search:firstRowKey"`).
+**Verifica**: LOSERS apre su HEMI −22%, GAINERS su ONG +42%, entrambe monotone.
+
+### Verifica (25/08, emulatore API 35, E2E 2 run + smoke release)
+- `scripts/emu-verify-031.sh` (debug): card senza `24h H/L`, chip `1m 5m 15m 1h
+  4h 1d 1w`, default 15m confermato dal db klines, LOSERS/GAINERS ordine reale.
+- `scripts/emu-smoke-release-031.sh` (release): installa `app-release.apk`,
+  `versionName 0.3.1 / versionCode 13`, LOSERS apre su −21.86%, app viva.
+- **Release live**: commit `68524da`, tag `v0.3.1`,
+  `github.com/adgscotti-png/xon-trader/releases/tag/v0.3.1`, asset
+  `xon-trader-0.3.1.apk` (3,265,000 byte) scaricato e verificato byte-identico
+  (sha256 `56c099ae…`) all'APK locale.
+
+## 15. Rilascio store: Google Play (item ④) — CHECKLIST
+
+Distribuzione FOSS via GitHub Releases finora. Per Play serve un processo
+dedicato. Requisito chiave verificato 25/08/2026 su
+`support.google.com/googleplay/android-developer/answer/11926878`:
+
+> **New apps e updates devono targetizzare Android 16 (API 36) dal 31/08/2026**
+> (estensione a 01/11/2026 su richiesta dal Play Console). Le app già
+> esistenti devono restare almeno su API 35 fino al 31/08/2026.
+
+→ XON Trader è un'**app NUOVA** per Play: la prima submission deve puntare
+**API 36** (o usare l'estensione al 01/11/2026). L'APK attuale è `targetSdk 35`.
+
+### Vincolo ambiente già rilevato
+- L'SDK installato ha solo `platforms;android-35` + build-tools 34.0.0.
+  Serve `sdkmanager "platforms;android-36"` (e un AVD android-36 per i test).
+- Da valutare su API 36 (Android 16, "Baklava"): edge-to-edge obbligatorio,
+  predictive back, 16 KB page size (per il so relativo).
+
+### Checklist
+1. **Account**: Play Console (pagamento 25$ una tantum), progetto/developer name.
+2. **App bundle**: sostituire `assembleRelease` con `bundleRelease` (`.aab` è
+   l'unico formato accettato). Keystore: usare lo stesso per sempre (Play App
+   Signing: caricare la chiave di upload, Play tiene la signing finale).
+3. **targetSdk 36**: installare platform-36, bump `compileSdk/targetSdk = 36`,
+   verificare su AVD android-36 (edge-to-edge, predictive back), aggiornare
+   E2E di conseguenza.
+4. **Scheda Play**: titolo/descrizione/screenshots (usare gli shot degli E2E:
+   markets, chart), feature graphic 1024×500, icona 512 (rebrand XON già pronto).
+5. **Privacy**: dichiarazione per le API usate — app **senza raccolta dati**
+   (nessun account, nessun analytics): selezionare "Non raccogliere dati";
+   eventuale Policy URL.
+6. **Content rating** (questionario IARC), Data safety form.
+7. **Test**: aprire il tracking (Open/Internal/Closed) e caricarvi prima la
+   `.aab` di prova → far testare la beta a un gruppo ristretto prima del
+   rilascio pubblico (meglio Closed testing: XON Trader è per trader attivi).
+8. **Produzione**: promotion track → review Google (1-7 gg di solito).
+9. **Versioning**: mantenere `versionCode` crescente (13 → 14…).
+10. **FOSS**: il codice è GPL-3.0; Play non ha obiezioni, ma per F-Droid
+    servirebbe una build riproducibile (repo "obtainium" come alternativa).
