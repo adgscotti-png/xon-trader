@@ -146,8 +146,11 @@ class CoinDetailViewModel(
     fun setProvider(newProvider: ProviderId) {
         if (newProvider == _state.value.provider) return
         viewModelScope.launch {
-            val newSymbol = canonicalPair?.let { marketDataRepo.providerSymbol(newProvider, it) }
-            if (canonicalPair != null && newSymbol == null) {
+            // native: serve SOLO al check di supporto (la coppia è listata?);
+            // lo state.symbol resta il compatto CANONICO (es. "BTCUSDT") perché
+            // cache e klines lavorano su quello, mai sul formato nativo ("BTC-USDT").
+            val native = canonicalPair?.let { marketDataRepo.providerSymbol(newProvider, it) }
+            if (canonicalPair != null && native == null) {
                 // L'exchange non lista questa coppia (es. Kraken non ha USDT):
                 // niente switch, niente override, solo un messaggio chiaro.
                 _state.update {
@@ -158,7 +161,7 @@ class CoinDetailViewModel(
             if (canonicalPair != null) {
                 settingsRepo.setPerCoinProvider(canonicalPair.key, newProvider)
             }
-            val resolved = newSymbol ?: symbol
+            val resolved = canonicalPair?.compact ?: symbol
             _state.update { s ->
                 s.copy(
                     provider = newProvider,

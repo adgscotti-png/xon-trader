@@ -19,13 +19,13 @@ interface CoinbaseApi {
     @GET("products/{id}/stats")
     suspend fun stats(@Path("id") id: String): CoinbaseStatsDto
 
-    /** Candele: [[time, low, high, open, close, volume], ...] (decrescente). */
+    /** Candele: [[time, low, high, open, close, volume], ...] (decrescente, NUMERI). */
     @GET("products/{id}/candles")
     suspend fun candles(
         @Path("id") id: String,
         @Query("granularity") granularity: Int,
         @Query("limit") limit: Int = 300,
-    ): List<List<String>>
+    ): List<List<Double>>
 }
 
 @kotlinx.serialization.Serializable

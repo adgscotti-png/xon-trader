@@ -203,28 +203,45 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }
 
     private suspend fun bootstrap(sel: ProviderSelection) {
-        val pid = effectiveProviderId(sel) ?: return
-        ensureCatalog(pid).join()
-        // Primo avvio / cache fredda: seeding dei top del provider, così la
-        // lista "All" mostra il mercato e non solo i preferiti di default.
-        if (marketDataRepo.observeCached(pid, 1).first().size < 30) {
-            runCatching { marketDataRepo.refreshTopMarket(pid) }
+        // Catalogo della fonte primaria (default in AUTO): serve a ricerca e nomi.
+        val primary = effectiveProviderId(sel) ?: return
+        ensureCatalog(primary).join()
+        var anyOk = false
+        for (pid in refreshTargets(sel)) {
+            // Primo avvio / cache fredda: seeding dei top del provider, così la
+            // lista "All" mostra il mercato e non solo i preferiti di default.
+            if (marketDataRepo.observeCached(pid, 1).first().size < 30) {
+                runCatching { marketDataRepo.refreshTopMarket(pid) }
+            }
+            if (refreshTarget(pid, force = false)) anyOk = true
         }
-        applyOffline(marketDataRepo.refreshTickers(pid, wantedSymbols(pid), force = false))
-        marketDataRepo.refreshSparklines(pid, wantedSymbols(pid).take(SPARK_BUDGET))
-        _state.update { it.copy(loading = false) }
+        _state.update { it.copy(loading = false, offlineSinceMs = if (anyOk) null else System.currentTimeMillis()) }
     }
 
     private suspend fun refresh(sel: ProviderSelection, force: Boolean) {
-        val pid = effectiveProviderId(sel) ?: return
-        applyOffline(marketDataRepo.refreshTickers(pid, wantedSymbols(pid), force = force))
-        marketDataRepo.refreshSparklines(pid, wantedSymbols(pid).take(SPARK_BUDGET))
+        var anyOk = false
+        for (pid in refreshTargets(sel)) {
+            if (refreshTarget(pid, force = force)) anyOk = true
+        }
+        _state.update { it.copy(offlineSinceMs = if (anyOk) null else System.currentTimeMillis()) }
     }
 
-    private suspend fun applyOffline(result: Result<Unit>) {
-        _state.update {
-            it.copy(offlineSinceMs = if (result.isFailure) System.currentTimeMillis() else null)
-        }
+    private suspend fun refreshTarget(pid: ProviderId, force: Boolean): Boolean {
+        val ok = marketDataRepo.refreshTickers(pid, wantedSymbols(pid), force = force).isSuccess
+        marketDataRepo.refreshSparklines(pid, wantedSymbols(pid).take(SPARK_BUDGET))
+        return ok
+    }
+
+    /**
+     * Provider da rinfrescare: in un chip specifico solo quello; in AUTO TUTTI i
+     * provider abilitati. Prima in AUTO si aggiornava solo il default (Binance):
+     * gli altri exchange restavano con prezzi vecchi di giorni e il ranking
+     * "All" mescolava dati freschi e stantii.
+     */
+    private suspend fun refreshTargets(sel: ProviderSelection): List<ProviderId> {
+        sel.providerId?.let { return listOf(it) }
+        val ids = registry.enabledIds().toList()
+        return ids.ifEmpty { listOf(ProviderId.BINANCE) }
     }
 
     /** AUTO → default configurato; altrimenti il provider del chip. */

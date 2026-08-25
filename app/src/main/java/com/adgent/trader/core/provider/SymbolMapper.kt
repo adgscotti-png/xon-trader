@@ -41,8 +41,10 @@ class SymbolMapper(
                 "${pair.base}-${pair.quote}"
             ProviderId.BITFINEX -> "t" + pair.base + (quoteAliases[pair.quote] ?: pair.quote)
             ProviderId.KRAKEN -> {
-                val native = baseAliases.entries.firstOrNull { it.value == pair.base }?.key
-                    ?: pair.base
+                // Solo BTC usa l'alias nativo "XBT" nella REQUEST; "UDC" per USDC
+                // non è più accettato da Kraken (EQuery:Unknown asset pair) e
+                // avvelenava l'intera chiamata CSV del ranking.
+                val native = if (pair.base == "BTC") "XBT" else pair.base
                 native + pair.quote
             }
         }

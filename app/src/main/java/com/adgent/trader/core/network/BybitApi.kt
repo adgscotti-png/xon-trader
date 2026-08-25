@@ -81,15 +81,7 @@ data class BybitKlinesResponse(
     val result: BybitKlineList = BybitKlineList(),
 )
 
+/** Le candele Bybit sono ARRAY di stringhe, non oggetti:
+ *  [startTime, open, high, low, close, volume, turnover]. */
 @kotlinx.serialization.Serializable
-data class BybitKlineList(val list: List<BybitKlineDto> = emptyList())
-
-@kotlinx.serialization.Serializable
-data class BybitKlineDto(
-    val startTime: String = "",
-    val open: String = "",
-    val high: String = "",
-    val low: String = "",
-    val close: String = "",
-    val volume: String = "",
-)
+data class BybitKlineList(val list: List<List<String>> = emptyList())

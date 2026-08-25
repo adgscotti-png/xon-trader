@@ -84,15 +84,16 @@ class BybitProvider(
 
     override suspend fun klines(symbol: String, tf: Timeframe, limit: Int): List<Kline> =
         guarded { api.klines(symbol = symbol, interval = tf.intervalFor(ProviderId.BYBIT), limit = limit).result.list }
-            .map { row ->
-                val t = row.startTime.toLongOrNull() ?: 0L
+            .mapNotNull { row ->
+                // [startTime, open, high, low, close, volume, turnover]
+                val t = row.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
                 Kline(
                     openTime = t,
-                    open = row.open.toDoubleOrNull() ?: 0.0,
-                    high = row.high.toDoubleOrNull() ?: 0.0,
-                    low = row.low.toDoubleOrNull() ?: 0.0,
-                    close = row.close.toDoubleOrNull() ?: 0.0,
-                    volume = row.volume.toDoubleOrNull() ?: 0.0,
+                    open = row.getOrNull(1)?.toDoubleOrNull() ?: 0.0,
+                    high = row.getOrNull(2)?.toDoubleOrNull() ?: 0.0,
+                    low = row.getOrNull(3)?.toDoubleOrNull() ?: 0.0,
+                    close = row.getOrNull(4)?.toDoubleOrNull() ?: 0.0,
+                    volume = row.getOrNull(5)?.toDoubleOrNull() ?: 0.0,
                     closeTime = t,
                 )
             }

@@ -88,15 +88,15 @@ class CoinbaseProvider(
         val granularity = tf.intervalFor(ProviderId.COINBASE).toIntOrNull() ?: 60
         return guarded { api.candles(n, granularity, limit) }
             .mapNotNull { row ->
-                // [time, low, high, open, close, volume]
-                val t = row.getOrNull(0)?.toLongOrNull() ?: return@mapNotNull null
+                // [time, low, high, open, close, volume] — time in secondi
+                val t = row.getOrNull(0)?.toLong() ?: return@mapNotNull null
                 Kline(
                     openTime = t * 1000L,
-                    open = row.getOrNull(3)?.toDoubleOrNull() ?: 0.0,
-                    high = row.getOrNull(2)?.toDoubleOrNull() ?: 0.0,
-                    low = row.getOrNull(1)?.toDoubleOrNull() ?: 0.0,
-                    close = row.getOrNull(4)?.toDoubleOrNull() ?: 0.0,
-                    volume = row.getOrNull(5)?.toDoubleOrNull() ?: 0.0,
+                    open = row.getOrNull(3) ?: 0.0,
+                    high = row.getOrNull(2) ?: 0.0,
+                    low = row.getOrNull(1) ?: 0.0,
+                    close = row.getOrNull(4) ?: 0.0,
+                    volume = row.getOrNull(5) ?: 0.0,
                     closeTime = t * 1000L,
                 )
             }

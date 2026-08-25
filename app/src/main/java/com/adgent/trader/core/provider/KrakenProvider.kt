@@ -76,11 +76,14 @@ class KrakenProvider(
 
     /** Ranking: lista curata top-~24 in UNA chiamata (Ticker accetta coppie CSV). */
     override suspend fun tickers24hAll(): List<Ticker> = guarded {
-        val r = parseResult(api.ticker(KRAKEN_TOP.mapNotNull { nativeOf(it) }.joinToString(",")))
-            ?: return@guarded emptyList()
+        val pairs = KRAKEN_TOP.mapNotNull { nativeOf(it) }
+        val r = parseResult(api.ticker(pairs.joinToString(","))) ?: return@guarded emptyList()
         KRAKEN_TOP.mapNotNull { sym ->
             val n = nativeOf(sym) ?: return@mapNotNull null
-            (r[n] as? JsonObject)?.let { tickerFrom(it, sym) }
+            // Le vecchie coppie (BTC/ETH/DOGE/...) hanno chiavi CANONICHE nella
+            // risposta (XXBTZUSD) diverse dall'alias richiesto (XBTUSD): mappa.
+            val key = RESPONSE_KEY_OF[sym] ?: n
+            (r[key] as? JsonObject)?.let { tickerFrom(it, sym) }
         }
     }
 
@@ -195,6 +198,13 @@ class KrakenProvider(
 
     companion object {
         const val WS_URL = "wss://ws.kraken.com"
+        /** Chiave CANONICA che Kraken restituisce per le vecchie coppie (il request
+         *  alias non coincide con la chiave di risposta): compact → chiave. */
+        private val RESPONSE_KEY_OF: Map<String, String> = mapOf(
+            "BTCUSD" to "XXBTZUSD", "ETHUSD" to "XETHZUSD", "DOGEUSD" to "XDGUSD",
+            "LTCUSD" to "XLTCZUSD", "XRPUSD" to "XXRPZUSD", "XLMUSD" to "XXLMZUSD",
+            "ETCUSD" to "XETCZUSD",
+        )
         /** Top coin scambiate su Kraken in quote USD (per il ranking senza bulk). */
         private val KRAKEN_TOP: List<String> = listOf(
             "BTCUSD", "ETHUSD", "SOLUSD", "XRPUSD", "ADAUSD", "DOGEUSD",

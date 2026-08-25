@@ -66,7 +66,6 @@ import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.components.CoinBadge
 import com.adgent.trader.ui.components.PriceText
-import com.adgent.trader.ui.components.Sparkline
 import kotlinx.coroutines.delay
 
 /**
@@ -299,9 +298,9 @@ private fun MarketGrid(
 }
 
 /**
- * Card mercato 2-per-riga (stile TabTrader): badge, nome/simbolo, sparkline,
- * prezzo, variazione % e statistiche 24h. In modalità Auto (più exchange) mostra
- * anche l'exchange di provenienza, così sai da quale mercato arriva il prezzo.
+ * Card mercato 2-per-riga (stile TabTrader): badge, nome/simbolo, prezzo e
+ * variazione %. In modalità Auto (più exchange) mostra anche l'exchange di
+ * provenienza, così sai da quale mercato arriva il prezzo.
  */
 @Composable
 private fun MarketCard(
@@ -320,10 +319,10 @@ private fun MarketCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(120.dp)
+                .height(100.dp)
                 .padding(12.dp),
         ) {
-            // Riga superiore: badge, nome/simbolo, sparkline (o toggle preferito in ricerca).
+            // Riga superiore: badge + nome/simbolo (+ toggle preferito in ricerca).
             Row(verticalAlignment = Alignment.CenterVertically) {
                 CoinBadge(base = row.base, size = 34.dp)
                 Spacer(Modifier.width(10.dp))
@@ -347,11 +346,16 @@ private fun MarketCard(
                         }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Il simbolo si accorcia (ellipsis) se serve: il nome
+                        // dell'exchange ha SEMPRE tutto lo spazio, non deve
+                        // mai finire troncato (es. "C" per Coinbase).
                         Text(
                             row.symbol,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
                         )
                         if (showProvider) {
                             Spacer(Modifier.width(5.dp))
@@ -360,6 +364,7 @@ private fun MarketCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
+                                softWrap = false,
                             )
                         }
                     }
@@ -373,19 +378,10 @@ private fun MarketCard(
                             modifier = Modifier.size(18.dp),
                         )
                     }
-                } else {
-                    Sparkline(
-                        values = row.sparkline,
-                        positive = row.changePercent24h >= 0,
-                        modifier = Modifier
-                            .width(52.dp)
-                            .height(22.dp)
-                            .alpha(if (row.sparkline.isEmpty()) 0f else 1f),
-                    )
                 }
             }
 
-            Spacer(Modifier.height(10.dp))
+            Spacer(Modifier.height(8.dp))
 
             // Prezzo + badge variazione.
             Row(verticalAlignment = Alignment.Bottom) {
