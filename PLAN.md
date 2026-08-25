@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. Andrea 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: README GitHub marketing (EN: screenshots+istruzioni+filosofia) + nome Andrea rimosso dalla landing xon.adg-ent.com; repo resta PRIVATE finché Andrea dà l'ok`
+`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. Andrea 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: ✅ README marketing + landing con avviso BETA + contatto @XONTrader (README commit 6f3de83, landing verificata) — repo resta PRIVATE finché Andrea dà l'ok`
 
 ---
 
@@ -546,9 +546,28 @@ via F-Droid. Invece:
    versione aggiornate `v0.2.9` → `v0.3.2` (hero tag + CTA). **Aggiunta
    sezione "See it in action"** (id `screens`, nav link, CSS card con frame
    telefono): 4 screenshot dark serviti da `/screens/*.png` (markets, chart,
-   alerts, favorites), responsive 4→2 col. Verificato: 0 riferimenti al nome,
-   immagini HTTP 200, nginx serve i file aggiornati.
+   alerts, favorites), responsive 4→2 col. **CTA a 2 destinazioni chiare**
+   (richiesta Andrea: niente più `/releases/latest`): **Download → file diretto**
+   `releases/download/v0.3.2/xon-trader-0.3.2.apk` (hero + CTA finale, label
+   "Download APK v0.3.2"), **GitHub → landing del repo**
+   `github.com/adgscotti-png/xon-trader`. ⚠️ Finché il repo è PRIVATE queste
+   URL 404 per i visitatori anonimi — funzionano appena Andrea dà l'ok ad
+   aprirlo (allora aggiornare il pin versione a ogni release). Verificato: 0
+   riferimenti al nome, immagini HTTP 200, nginx serve i file aggiornati.
 3. **Repo resta PRIVATE** finché Andrea non rivede e dà l'ok per aprirlo.
    ⚠️ Prima di aprire: `PLAN.md` e `docs/play-listing.md` contengono il nome
    Andrea (documentazione interna in italiano) — valutare se ripulire prima del
    go-live pubblico.
+4. **Avviso BETA + contatto @XONTrader ben evidente** (richiesta Andrea 25/08),
+   su ENTRAMBE le superfici:
+   - **Landing** `xon.adg-ent.com`: barra gradient sopra la nav con pill `Beta`
+     e testo "XON Trader is in **open beta** — suggestions and bug reports are
+     welcome: DM [@XONTrader on X](https://x.com/XONTrader)"; tag hero
+     `v0.3.2 BETA`; link footer `X @XONTrader` → https://x.com/XONTrader.
+     Verificato nel container: banner, pill, 2 link X, CTA a 2 destinazioni
+     intatte, 0 riferimenti al nome.
+   - **README GitHub**: blockquote sotto l'hero — "> **Open beta.** XON Trader
+     is released as a beta … Send a DM to **[@XONTrader](https://x.com/XONTrader)
+     on X** — every message is read." Commit `6f3de83` pushato su `main`.
+   ⚠️ Finché il repo è PRIVATE il README (e i link) sono visibili solo a chi ha
+   accesso al repo; l'avviso beta diventa pubblico quando si apre.
