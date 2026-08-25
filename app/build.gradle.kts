@@ -19,14 +19,14 @@ val releaseProps: Map<String, String> = runCatching {
 
 android {
     namespace = "com.adgent.trader"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.adgent.trader"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 14
-        versionName = "0.3.2"
+        targetSdk = 36
+        versionCode = 15
+        versionName = "0.3.3"
     }
 
     signingConfigs {

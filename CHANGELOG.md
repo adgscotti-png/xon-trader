@@ -2,6 +2,14 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [0.3.3] — 2026-08-25
+
+### Changed
+- **Targets Android 16 (API 36)** — new apps on Google Play must target API 36 from 31/08/2026, so the build now compiles and targets API 36 (`compileSdk`/`targetSdk = 36`). This is the base for the Play submission and also ships as a `.aab` (`bundleRelease`) for the Play Console, alongside the regular signed `.apk`.
+
+### Notes
+- Not released to GitHub yet: it exists so the Play Console upload is one step once the developer account is active. The keystore and app identity are unchanged (`com.adgent.trader`, same release signing key).
+
 ## [0.3.2] — 2026-08-25
 
 ### Changed
