@@ -12,9 +12,9 @@ no account, no API key, no backend, no tracking.
 [![Providers](https://img.shields.io/badge/Providers-7%20keyless%20exchanges-7a3dff)](#exchanges)
 [![Privacy](https://img.shields.io/badge/Privacy-No%20backend%2C%20no%20telemetry-20c997)](#why-xon-trader)
 
-<img src="docs/screenshots/markets-light.png" width="235" alt="Markets — light theme">
-<img src="docs/screenshots/chart.png" width="235" alt="Interactive candlestick chart">
-<img src="docs/screenshots/alerts.png" width="235" alt="Price alert editor">
+<img src="docs/screenshots/markets-dark.png" width="235" alt="Markets — dark theme">
+<img src="docs/screenshots/chart.png" width="235" alt="Interactive candlestick chart — BTC/USDT">
+<img src="docs/screenshots/alerts.png" width="235" alt="Price alert editor — BTC/USDT">
 
 **Download the APK** from the [latest release](https://github.com/adgscotti-png/xon-trader/releases/latest), install it, and you're done. Everything runs on your phone — the app talks to the exchanges directly, and nothing is sent anywhere else.
 
@@ -85,9 +85,9 @@ not financial advice.
 - **Privacy controls** — optional biometric/PIN app lock, and JSON
   backup/restore of your favorites and alerts.
 
-<img src="docs/screenshots/favorites.png" width="235" alt="Favorites — a coin added from Kraken keeps its provider">
-<img src="docs/screenshots/widgets.png" width="235" alt="Home-screen widgets in the picker">
-<img src="docs/screenshots/markets-dark.png" width="235" alt="Markets — dark theme">
+<p align="center">
+  <img src="docs/screenshots/favorites.png" width="235" alt="Favorites — your watchlist in one place">
+</p>
 
 ---
 

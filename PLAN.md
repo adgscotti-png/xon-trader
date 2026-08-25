@@ -532,16 +532,22 @@ via F-Droid. Invece:
 
 1. **README.md riscritto come pagina marketing** (inglese, qualità alta):
    hero con badge, filosofia (FOSS GPL-3.0, zero account/zero key/zero backend,
-   privacy-first, successore community di TabTrader), 6 screenshot (markets
-   light+dark, chart, alert editor, favorites multi-source, widget picker) in
-   `docs/screenshots/` (committed, `shots/` resta gitignored), sezione
-   install (APK da Releases, Android 8.0+), build from source (Docker),
-   architettura Port/Adapter, exchanges, changelog, license.
+   privacy-first, successore community di TabTrader), 4 screenshot in
+   `docs/screenshots/` (committed, `shots/` resta gitignored) — **rifatti in
+   DARK MODE da emulatore API 35 su build release 0.3.2/0.3.3**: markets (con
+   chip row 7 provider), chart **BTC/USDT · Binance**, alert editor **BTC**,
+   favorites (BTC+ETH); rimossi widgets.png (vecchio branding adgent trader) e
+   markets-light.png; niente più SLX. Sezione install (APK da Releases, Android
+   8.0+), build from source (Docker), architettura Port/Adapter, exchanges,
+   changelog, license.
 2. **Nome Andrea rimosso dalla landing** `xon.adg-ent.com` (container
    `xon-trader-landing`, root `/home/andrea/docker/xon-trader/landing`):
    footer `© 2026 Andrea Scotti / XON Trader` → `© 2026 XON Trader`; label
-   versione aggiornate `v0.2.9` → `v0.3.2` (hero tag + CTA). Verificato: niente
-   più riferimenti al nome, nginx serve il file aggiornato.
+   versione aggiornate `v0.2.9` → `v0.3.2` (hero tag + CTA). **Aggiunta
+   sezione "See it in action"** (id `screens`, nav link, CSS card con frame
+   telefono): 4 screenshot dark serviti da `/screens/*.png` (markets, chart,
+   alerts, favorites), responsive 4→2 col. Verificato: 0 riferimenti al nome,
+   immagini HTTP 200, nginx serve i file aggiornati.
 3. **Repo resta PRIVATE** finché Andrea non rivede e dà l'ok per aprirlo.
    ⚠️ Prima di aprire: `PLAN.md` e `docs/play-listing.md` contengono il nome
    Andrea (documentazione interna in italiano) — valutare se ripulire prima del
