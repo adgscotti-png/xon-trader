@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2, asset APK verificato). ORA: Google Play prep (account richiesto da Andrea 25/08): bump compileSdk/targetSdk 36 + bundleRelease AAB + test AVD xontest36 + feature graphic 1024×500; listing già pronto in docs/play-listing.md`
+`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. Andrea 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: README GitHub marketing (EN: screenshots+istruzioni+filosofia) + nome Andrea rimosso dalla landing xon.adg-ent.com; repo resta PRIVATE finché Andrea dà l'ok`
 
 ---
 
@@ -524,3 +524,25 @@ dedicato. Requisito chiave verificato 25/08/2026 su
 9. **Versioning**: mantenere `versionCode` crescente (13 → 14…).
 10. **FOSS**: il codice è GPL-3.0; Play non ha obiezioni, ma per F-Droid
     servirebbe una build riproducibile (repo "obtainium" come alternativa).
+
+## 16. README marketing + privacy landing (25/08/2026)
+
+Su indicazione di Andrea (25/08): **F-Droid abbandonato**, niente più distribuzione
+via F-Droid. Invece:
+
+1. **README.md riscritto come pagina marketing** (inglese, qualità alta):
+   hero con badge, filosofia (FOSS GPL-3.0, zero account/zero key/zero backend,
+   privacy-first, successore community di TabTrader), 6 screenshot (markets
+   light+dark, chart, alert editor, favorites multi-source, widget picker) in
+   `docs/screenshots/` (committed, `shots/` resta gitignored), sezione
+   install (APK da Releases, Android 8.0+), build from source (Docker),
+   architettura Port/Adapter, exchanges, changelog, license.
+2. **Nome Andrea rimosso dalla landing** `xon.adg-ent.com` (container
+   `xon-trader-landing`, root `/home/andrea/docker/xon-trader/landing`):
+   footer `© 2026 Andrea Scotti / XON Trader` → `© 2026 XON Trader`; label
+   versione aggiornate `v0.2.9` → `v0.3.2` (hero tag + CTA). Verificato: niente
+   più riferimenti al nome, nginx serve il file aggiornato.
+3. **Repo resta PRIVATE** finché Andrea non rivede e dà l'ok per aprirlo.
+   ⚠️ Prima di aprire: `PLAN.md` e `docs/play-listing.md` contengono il nome
+   Andrea (documentazione interna in italiano) — valutare se ripulire prima del
+   go-live pubblico.
