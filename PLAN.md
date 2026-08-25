@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: 0.3.2 — card compatte 100dp, no sparkline, label exchange intera, AUTO refresh multi-provider, fix grafici Bybit/Coinbase/Kraken (klines DTO + UDCUSD + chiavi canoniche). E2E su emulatore, release + tag + GitHub Release. DOPO: Google Play (targetSdk 36 + AAB + listing) — richiesta account fatta da Andrea 25/08`
+`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2, asset APK verificato). ORA: Google Play prep (account richiesto da Andrea 25/08): bump compileSdk/targetSdk 36 + bundleRelease AAB + test AVD xontest36 + feature graphic 1024×500; listing già pronto in docs/play-listing.md`
 
 ---
 
@@ -493,11 +493,15 @@ dedicato. Requisito chiave verificato 25/08/2026 su
 → XON Trader è un'**app NUOVA** per Play: la prima submission deve puntare
 **API 36** (o usare l'estensione al 01/11/2026). L'APK attuale è `targetSdk 35`.
 
-### Vincolo ambiente già rilevato
-- L'SDK installato ha solo `platforms;android-35` + build-tools 34.0.0.
-  Serve `sdkmanager "platforms;android-36"` (e un AVD android-36 per i test).
-- Da valutare su API 36 (Android 16, "Baklava"): edge-to-edge obbligatorio,
-  predictive back, 16 KB page size (per il so relativo).
+### Stato prep (25/08, account Play richiesto)
+- ✅ `platforms;android-36` + `build-tools;36.0.0` installati; system-image
+  `android-36;google_apis;x86_64` scaricata; **AVD `xontest36` creato**.
+- ✅ **`docs/play-listing.md`**: listing EN (short + full description), privacy
+  "zero dati", data safety form, IARC, assets checklist (feature graphic 1024×500
+  ⏳ da generare), testing track, Play App Signing/upload key.
+- ⏳ **Prossimo**: bump `compileSdk/targetSdk = 36` in `app/build.gradle.kts` +
+  `bundleRelease` → `.aab`; test su AVD `xontest36` (edge-to-edge obbligatorio,
+  predictive back, 16 KB page size per il so relativo).
 
 ### Checklist
 1. **Account**: Play Console (pagamento 25$ una tantum), progetto/developer name.
