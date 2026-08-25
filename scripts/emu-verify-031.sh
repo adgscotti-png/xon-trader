@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Verifica E2E 0.3.1 (ondata UI Andrea):
+# Verifica E2E 0.3.1 (ondata UI (maintainer)):
 #  1) card Markets senza riga "24h H / 24h L / Vol" (card più corte)
 #  2) timeframe M5 presente + default grafico = 15m
 #  3) tab Gainers/Losers: ORDINE REALE mostrato con mercato pieno —

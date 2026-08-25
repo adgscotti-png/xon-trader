@@ -20,7 +20,7 @@ captures/
 # macOS
 .DS_Store
 
-# Keystore release: MAI committare (backup manuale responsabilità Andrea)
+# Keystore release: MAI committare (backup manuale responsabilità maintainer)
 keystore/
 
 # Session dir Kotlin 2.x (artefatto locale)

@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
-**Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. Andrea 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: ✅ README marketing + landing con avviso BETA + contatto @XONTrader (README commit 6f3de83, landing verificata) — repo resta PRIVATE finché Andrea dà l'ok`
+**Piano di progetto — 2026-08-22 — claude · NOME APPROVATO dal maintainer 22/08/2026**
+`WORKING-ON: 0.3.2 RELEASED (tag v0.3.2). F-Droid ABBANDONATO (dec. maintainer 25/08). Play prep in attesa account (base 0.3.3 targetSdk 36 pronta). ORA: ✅ README marketing + landing con avviso BETA + contatto @XONTrader (README commit 6f3de83, landing verificata) — repo resta PRIVATE finché maintainer dà l'ok`
 
 ---
 
@@ -149,7 +149,7 @@ Zero telemetria; crash report opzionale ACRA self-hosted.
 | GitHub Actions + secrets firma release | CI/CD |
 | (opz.) fastlane supply | pubblicazione Play track interne |
 
-Sul server scotti non serve nulla: si sviluppando in repo dedicato (propongo
+Sul server di build non serve nulla: si sviluppando in repo dedicato (propongo
 `/workspace/tabtrader-alt/` qui o una macchina con Android SDK) e CI fa il resto.
 
 ---
@@ -174,7 +174,7 @@ pubblici), F-Droid, Wear OS tile.
 1. **Kill process OEM** → doppia modalità + guida per-marca + test su Xiaomi reale
 2. **Geo-blocco binance.com** (UK/US) → default `binance.vision`, setting endpoint custom (`api.binance.us`)
 3. **Policy Play finance** → disclaimer "non è consulenza finanziaria"; app informativa ok
-4. **Trademark** → risolto: nome **XON TRADER** (decisione Andrea 24/08/2026, già "XON Trader"), brand kit (#4C3DFF→#E6007E), licenza GPL-3.0
+4. **Trademark** → risolto: nome **XON TRADER** (decisione del maintainer 24/08/2026, già "XON Trader"), brand kit (#4C3DFF→#E6007E), licenza GPL-3.0
 5. **Binance cambia API** → layer `:core:network` isolato + contract test + version pin
 
 ---
@@ -186,7 +186,7 @@ pubblici), F-Droid, Wear OS tile.
 ## 8. Ondata F7 — fix feedback beta (23/08/2026)
 
 Test su device reale superato (debug **e** release: rischio R8 archiviato). Tre
-segnalazioni di Andrea, tre aree di intervento:
+segnalazioni del maintainer, tre aree di intervento:
 
 ### 1. Alert muti → permesso POST_NOTIFICATIONS
 **Causa #1**: da Android 13 il permesso notifiche va chiesto a runtime; senza,
@@ -214,7 +214,7 @@ il sistema scarta ogni notifica in silenzio. Ora:
 
 ## 9. Ondata F8 — feedback beta round 2 (23/08/2026)
 
-Cinque segnalazioni di Andrea su 0.2.1, tutte affrontate in un'unica ondata.
+Cinque segnalazioni del maintainer su 0.2.1, tutte affrontate in un'unica ondata.
 
 ### 1. Widget: configurazione non applicata (CRITICO)
 - **Causa radice**: `WidgetConfigActivity` salvava e chiamava `onClose(true)` dentro
@@ -261,7 +261,7 @@ Cinque segnalazioni di Andrea su 0.2.1, tutte affrontate in un'unica ondata.
 
 ## 10. Ondata UI CARD GRID — grafica a caselle (23/08/2026)
 
-Su richiesta di Andrea con reference in `research/ui-ref/` (TabTrader-1.jpg:
+Su richiesta del maintainer con reference in `research/ui-ref/` (TabTrader-1.jpg:
 griglia 2-per-riga; WhatsApp: scheda grafico più pulita). Solo presentazione:
 ViewModels, dati, navigazione e interazioni invariati.
 
@@ -302,7 +302,7 @@ prima riga ≈ (276,506); nav bar: alerts (540,2330), settings (900,2330).
 ## 11. Ondata fix widget CRITICO + grafico (23/08/2026) — release 0.2.4
 
 ### 1. Root cause del "widget che sovrascrive i precedenti" (CRITICO)
-**Sintomo Andrea**: l'ultimo widget creato funziona ma trasforma i precedenti —
+**Sintomo (maintainer)**: l'ultimo widget creato funziona ma trasforma i precedenti —
 selezioni BTC su uno e anche quello che mostrava ETH diventa BTC; addirittura
 anche il widget watchlist (favoriti) viene "sovrascritto".
 
@@ -396,7 +396,7 @@ foreground service tiene il WS e lo gestisce.
 
 ## 13. Ondata REBRAND XON TRADER (24/08/2026) — dentro release 0.2.8
 
-Decisione Andrea 24/08/2026: nome finale **"XON Trader"** (da **XONIC TRADER**,
+decisione del maintainer 24/08/2026: nome finale **"XON Trader"** (da **XONIC TRADER**,
 richiama la velocità giocando con "sonic": risponde solo agli user need, "è un
 lampo"). Rinomina anche progetto e repo, così ci si capisce quando se ne parla
 e su GitHub.
@@ -404,7 +404,7 @@ e su GitHub.
 ### Cosa è cambiato
 - **Nome app** "XON Trader" ovunque (strings.xml, widget label/preview,
   AppLock, notifiche, Settings, widget diagnostics, README, CHANGELOG, PLAN).
-- **Icona nuova** dall'icon set di Andrea (`xon_trader_icon.zip`): fulmine +
+- **Icona nuova** dall'icon set del maintainer (`xon_trader_icon.zip`): fulmine +
   wordmark "XON TRADER" bianco su nero, adaptive foreground 5 densità
   (FRAC 0.60, mark sorgente x[79,942] y[340,683]). Generata da
   `/tmp/gen_xon_icon.js` (decoder/encoder PNG filter-aware, alpha=luminance).
@@ -413,7 +413,7 @@ e su GitHub.
   W1 "1s"→**"1w"** (erano le abbreviazioni italiane giorno/settimana);
   AppLock "Sblocca"→**"Unlock"**.
 - **Cartella** `/workspace/adgent-trader` → `/workspace/xon-trader`
-  (== host `/home/andrea/projects/xon-trader`).
+  (== host `/home/utente/projects/xon-trader`).
 - **GitHub** repo `adgscotti-png/adgent-trader` → `adgscotti-png/xon-trader`
   (API PATCH, 200 OK; vecchio nome redirige). Remote `.git/config` aggiornato.
 - **Builder docker** `adgent-trader-builder:1.0` → `xon-trader-builder:1.0`
@@ -434,12 +434,12 @@ deep-link/theme/db. Eventuale rinomina package = ondata separata + migrazione.
   sono commenti dev-facing).
 - Shots: `shots/xon-rebrand-{chart,markets}.png`.
 
-**Release 0.2.8** (versionCode 10) — ⏳ **non ancora pushato**: Andrea ha chiesto
+**Release 0.2.8** (versionCode 10) — ⏳ **non ancora pushato**: maintainer ha chiesto
 di aspettare (altri cambi prima della pubblicazione).
 
-## 14. Ondata 0.3.1 — UI Andrea (25/08/2026) — RELEASE
+## 14. Ondata 0.3.1 — UI maintainer (25/08/2026) — RELEASE
 
-4 modifiche richieste da Andrea sulla UX:
+4 modifiche richieste dal maintainer sulla UX:
 
 ### 1. Card Markets più corte (più coppie per schermata)
 Rimossa la riga footer `24h H / 24h L / Vol` (dati già nel coin detail),
@@ -527,7 +527,7 @@ dedicato. Requisito chiave verificato 25/08/2026 su
 
 ## 16. README marketing + privacy landing (25/08/2026)
 
-Su indicazione di Andrea (25/08): **F-Droid abbandonato**, niente più distribuzione
+Su indicazione del maintainer (25/08): **F-Droid abbandonato**, niente più distribuzione
 via F-Droid. Invece:
 
 1. **README.md riscritto come pagina marketing** (inglese, qualità alta):
@@ -540,25 +540,25 @@ via F-Droid. Invece:
    markets-light.png; niente più SLX. Sezione install (APK da Releases, Android
    8.0+), build from source (Docker), architettura Port/Adapter, exchanges,
    changelog, license.
-2. **Nome Andrea rimosso dalla landing** `xon.adg-ent.com` (container
-   `xon-trader-landing`, root `/home/andrea/docker/xon-trader/landing`):
-   footer `© 2026 Andrea Scotti / XON Trader` → `© 2026 XON Trader`; label
+2. **Nome maintainer rimosso dalla landing** `xon.adg-ent.com` (container
+   `xon-trader-landing`, root `/home/utente/docker/xon-trader/landing`):
+   footer `© 2026 maintainer / XON Trader` → `© 2026 XON Trader`; label
    versione aggiornate `v0.2.9` → `v0.3.2` (hero tag + CTA). **Aggiunta
    sezione "See it in action"** (id `screens`, nav link, CSS card con frame
    telefono): 4 screenshot dark serviti da `/screens/*.png` (markets, chart,
    alerts, favorites), responsive 4→2 col. **CTA a 2 destinazioni chiare**
-   (richiesta Andrea: niente più `/releases/latest`): **Download → file diretto**
+   (richiesta maintainer: niente più `/releases/latest`): **Download → file diretto**
    `releases/download/v0.3.2/xon-trader-0.3.2.apk` (hero + CTA finale, label
    "Download APK v0.3.2"), **GitHub → landing del repo**
    `github.com/adgscotti-png/xon-trader`. ⚠️ Finché il repo è PRIVATE queste
-   URL 404 per i visitatori anonimi — funzionano appena Andrea dà l'ok ad
+   URL 404 per i visitatori anonimi — funzionano appena maintainer dà l'ok ad
    aprirlo (allora aggiornare il pin versione a ogni release). Verificato: 0
    riferimenti al nome, immagini HTTP 200, nginx serve i file aggiornati.
-3. **Repo resta PRIVATE** finché Andrea non rivede e dà l'ok per aprirlo.
+3. **Repo resta PRIVATE** finché maintainer non rivede e dà l'ok per aprirlo.
    ⚠️ Prima di aprire: `PLAN.md` e `docs/play-listing.md` contengono il nome
-   Andrea (documentazione interna in italiano) — valutare se ripulire prima del
+   maintainer (documentazione interna in italiano) — valutare se ripulire prima del
    go-live pubblico.
-4. **Avviso BETA + contatto @XONTrader ben evidente** (richiesta Andrea 25/08),
+4. **Avviso BETA + contatto @XONTrader ben evidente** (richiesta maintainer 25/08),
    su ENTRAMBE le superfici:
    - **Landing** `xon.adg-ent.com`: barra gradient sopra la nav con pill `Beta`
      e testo "XON Trader is in **open beta** — suggestions and bug reports are

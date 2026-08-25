@@ -1,5 +1,5 @@
 """Icona ADGENT Trader: solo "ADGT" bianco bold su nero, dentro la safe zone.
-Genera ic_launcher_foreground.png a 5 densita + anteprima per Andrea."""
+Genera ic_launcher_foreground.png a 5 densita + anteprima per il maintainer."""
 from PIL import Image, ImageDraw, ImageFont
 
 FONT_B = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
@@ -34,7 +34,7 @@ for name, side in densities.items():
     make_foreground(side).save(f"{d}/ic_launcher_foreground.png")
     print("saved", d, side)
 
-# --- anteprima per Andrea ---
+# --- anteprima per il maintainer ---
 big = make_foreground(864)
 def tile(img, side):
     return img.resize((side, side), Image.LANCZOS)

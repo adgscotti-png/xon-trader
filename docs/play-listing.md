@@ -1,6 +1,6 @@
 # XON Trader — Google Play listing (pronto per la submission)
 
-> Prep 25/08/2026 — account Play richiesto da Andrea; tutto il resto pronto qui.
+> Prep 25/08/2026 — account Play richiesto dal maintainer; tutto il resto pronto qui.
 > Requisito chiave: app NUOVA → targetSdk 36 (obbligatorio dal 31/08/2026,
 > estensione Play Console al 01/11/2026). Build di riferimento: `bundleRelease`.
 
@@ -86,4 +86,4 @@ exchanges — no account, no ads, no data collection.
 - Keystore di release in `keystore/release.properties` (**fuori git**).
 - Play App Signing: la chiave caricata è quella di **upload**; la chiave finale
   resta in mano a Play. Se si perde il keystore → si perde l'upload key.
-- Backup del keystore = **responsabilità di Andrea** (già evidenziato).
+- Backup del keystore = **responsabilità del maintainer** (già evidenziato).
