@@ -2,6 +2,20 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [0.3.2] — 2026-08-25
+
+### Changed
+- **Even more compact market cards** — card height shrinks from 120dp to 100dp and the little colored sparkline next to the coin name is gone (it repeated the 24h change without adding information). The exchange name now sits next to the pair (BTCUSD **Coinbase** …) and renders in full instead of clipping after the first letter.
+- **Auto mode refreshes every exchange** — previously Auto only polled the default provider (Binance) and the others updated only while their chip was selected, so their rows went stale (e.g. OKX prices frozen). Auto now refreshes and seeds all enabled providers (Binance, Bybit, Kraken, Coinbase, OKX, Bitfinex, KuCoin).
+
+### Fixed
+- **Charts showed "NO DATA AVAILABLE · RETRY" on several exchanges** — Bybit and Coinbase klines arrived as JSON arrays, but the parsers expected typed objects, so every candle was dropped. Both now decode the real wire format.
+- **Kraken markets grid stayed empty** — Kraken's request alias for USDC (UDCUSD) is no longer accepted by the API, which rejected the *entire* 22-pair request and left the ranking empty; and the response returns canonical keys (XXBTZUSD, XETHZUSD, XDGUSD, …) for the older pairs instead of the requested aliases, silently dropping BTC/ETH/DOGE/LTC/XRP/XLM/ETC. Both are fixed: USDC uses its valid name and the response keys are resolved back to the compact pairs.
+- **Source switching on the coin detail** — switching exchange from the coin screen no longer rewrites the internal symbol to the provider's native format, which could stale the cache keys and stats after the switch.
+
+### Verified
+- Emulator E2E green (25/08): 0.3.2/14 installed; compact cards without the 24h H/L row; Auto grid populated with cards from multiple providers; Kraken chart opens on BTC (BTC/USD · Kraken) with no NO DATA; KuCoin chart opens on BTC (BTC/USDT · KuCoin) with no NO DATA; Losers opens on a real big loser and Gainers on a real gainer.
+
 ## [0.3.1] — 2026-08-25
 
 ### Changed

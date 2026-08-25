@@ -1,7 +1,7 @@
 # XON TRADER — alternativa FOSS a TabTrader
 
 **Piano di progetto — 2026-08-22 — claude · NOME APPROVATO da Andrea 22/08/2026**
-`WORKING-ON: F6 beta pubblica — release firmata 0.2.0-beta1 (R8+keystore), changelog; manca solo repo GitHub remota per Releases (serve Andrea). F1-F5 complete e committate`
+`WORKING-ON: 0.3.2 — card compatte 100dp, no sparkline, label exchange intera, AUTO refresh multi-provider, fix grafici Bybit/Coinbase/Kraken (klines DTO + UDCUSD + chiavi canoniche). E2E su emulatore, release + tag + GitHub Release. DOPO: Google Play (targetSdk 36 + AAB + listing) — richiesta account fatta da Andrea 25/08`
 
 ---
 
