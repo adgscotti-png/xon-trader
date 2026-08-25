@@ -46,6 +46,7 @@ import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
 import com.adgent.trader.core.common.NumberFormatMode
 import com.adgent.trader.core.provider.ProviderId
+import com.adgent.trader.data.AppStyle
 import kotlinx.coroutines.flow.first
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -122,6 +123,25 @@ private val TextDim = Color(0xFF9AA0B5)
 private val GreenUp = Color(0xFF20B65A)
 private val RedDown = Color(0xFFE5484D)
 
+/**
+ * Palette del widget per lo stile scelto. border != null aggiunge un anello
+ * ciano 1dp (Glance non supporta blur/box-shadow: niente glow vero nei widget).
+ */
+private data class WidgetPalette(
+    val bg: Color,
+    val card: Color,
+    val border: Color? = null,
+)
+
+private fun paletteFor(style: AppStyle): WidgetPalette = when (style) {
+    AppStyle.CLASSIC -> WidgetPalette(bg = BgColor, card = CardColor)
+    AppStyle.NEON -> WidgetPalette(
+        bg = Color(0xFF070F1E),
+        card = Color(0xFF0D1A33),
+        border = Color(0xFF4FA3E8),
+    )
+}
+
 @Composable
 private fun priceStyle(size: Int) = TextStyle(
     color = ColorProvider(TextMain),
@@ -182,16 +202,24 @@ class TickerWidget : GlanceAppWidget() {
             ?: rows.firstOrNull()
         val lastUpdate = WidgetConfigStore.lastUpdate(context)
         val timeLabel = timeLabel(lastUpdate)
+        val pal = paletteFor(context.applicationContext.appContainer.settingsRepo.settings.first().appStyle)
 
         provideContent {
             GlanceTheme {
                 Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .background(BgColor)
+                        .background(ColorProvider(pal.border ?: pal.bg))
                         .cornerRadius(14.dp)
-                        .padding(10.dp),
+                        .padding(all = if (pal.border != null) 1.dp else 0.dp),
                 ) {
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxSize()
+                            .background(ColorProvider(pal.bg))
+                            .cornerRadius(if (pal.border != null) 13.dp else 14.dp)
+                            .padding(10.dp),
+                    ) {
                     if (row == null) {
                         Text(
                             "Open XON Trader to load data",
@@ -238,12 +266,13 @@ class TickerWidget : GlanceAppWidget() {
                             }
                             Spacer(GlanceModifier.width(8.dp))
                             Box(
-                                modifier = GlanceModifier.background(CardColor).cornerRadius(12.dp),
+                                modifier = GlanceModifier.background(ColorProvider(pal.card)).cornerRadius(12.dp),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 RefreshButton()
                             }
                         }
+                    }
                     }
                 }
             }
@@ -311,16 +340,27 @@ class WatchlistWidget : GlanceAppWidget() {
         val rows = loadWidgetRows(context, limit = cfg.rows.coerceIn(1, 8))
         val lastUpdate = WidgetConfigStore.lastUpdate(context)
         val timeLabel = timeLabel(lastUpdate)
+        val pal = paletteFor(context.applicationContext.appContainer.settingsRepo.settings.first().appStyle)
 
         provideContent {
             GlanceTheme {
-                Column(
+                Box(
                     modifier = GlanceModifier
                         .fillMaxSize()
-                        .background(BgColor)
+                        .background(ColorProvider(pal.border ?: pal.bg))
                         .cornerRadius(14.dp)
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                        .padding(all = if (pal.border != null) 1.dp else 0.dp),
                 ) {
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxSize()
+                            .background(ColorProvider(pal.bg))
+                            .cornerRadius(if (pal.border != null) 13.dp else 14.dp)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                    ) {
+                    Column(
+                        modifier = GlanceModifier.fillMaxSize(),
+                    ) {
                     // Header: titolo + refresh immediato.
                     Row(verticalAlignment = Alignment.Vertical.CenterVertically) {
                         Text(
@@ -342,7 +382,7 @@ class WatchlistWidget : GlanceAppWidget() {
                                 Row(
                                     modifier = GlanceModifier
                                         .fillMaxWidth()
-                                        .background(ColorProvider(CardColor))
+                                        .background(ColorProvider(pal.card))
                                         .cornerRadius(10.dp)
                                         .clickable(openCoinAction(r.symbol, r.provider))
                                         .padding(horizontal = 10.dp, vertical = 5.dp),
@@ -383,6 +423,8 @@ class WatchlistWidget : GlanceAppWidget() {
                     if (cfg.showTimestamp && timeLabel.isNotBlank()) {
                         Spacer(GlanceModifier.height(3.dp))
                         Text("Updated $timeLabel", style = dimStyle(9))
+                    }
+                }
                     }
                 }
             }

@@ -39,6 +39,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.navigation.navDeepLink
+import com.adgent.trader.data.AppStyle
 import com.adgent.trader.data.Settings
 import com.adgent.trader.data.ThemeMode
 import com.adgent.trader.ui.alerts.AlertsScreen
@@ -90,7 +91,10 @@ fun AdgentApp(handleIntent: Intent?) {
         ThemeMode.LIGHT -> false
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
     }
-    AdgentTraderTheme(darkTheme = darkTheme) {
+    AdgentTraderTheme(
+        darkTheme = darkTheme,
+        appStyle = settings?.appStyle ?: AppStyle.CLASSIC,
+    ) {
         com.adgent.trader.ui.lock.AppLockGate(enabled = settings?.appLock == true) {
             RootNav(settings = settings, handleIntent = handleIntent)
         }

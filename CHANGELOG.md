@@ -4,11 +4,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with 
 
 ## [0.3.3] — 2026-08-25
 
+### Added
+- **Card style setting** — Settings → Appearance now offers **Classic** (the flat look) and **Neon** (a blue glowing outline on the price cards, the coin detail and the alert rows, with a navy background and navigation). Classic stays the default. Home-screen widgets (2×1 and 4×2) restyle instantly when you switch — navy with a thin cyan ring (widgets can't render a real glow, so they get the ring-only variant).
+
 ### Changed
-- **Targets Android 16 (API 36)** — new apps on Google Play must target API 36 from 31/08/2026, so the build now compiles and targets API 36 (`compileSdk`/`targetSdk = 36`). This is the base for the Play submission and also ships as a `.aab` (`bundleRelease`) for the Play Console, alongside the regular signed `.apk`.
+- **Targets Android 16 (API 36)** — new apps on Google Play must target API 36 from 31/08/2026, so the build now compiles and targets API 36 (`compileSdk`/`targetSdk = 36`). The same build will be submitted to the Play Console once the developer account is active, and also ships as a `.aab` (`bundleRelease`).
 
 ### Notes
-- Not released to GitHub yet: it exists so the Play Console upload is one step once the developer account is active. The keystore and app identity are unchanged (`com.adgent.trader`, same release signing key).
+- App identity unchanged (`com.adgent.trader`, same release signing key).
 
 ## [0.3.2] — 2026-08-25
 

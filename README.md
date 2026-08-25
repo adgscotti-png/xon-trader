@@ -163,6 +163,8 @@ Releases and the full changelog live in the
 [Releases page](https://github.com/adgscotti-png/xon-trader/releases) and in
 [`CHANGELOG.md`](CHANGELOG.md). Highlights:
 
+- **0.3.3** — new *Card style* setting (Classic / Neon) with instant widget
+  restyling; targets Android 16 (API 36).
 - **0.3.2** — compact market cards with the exchange name inline, *Auto* mode
   now refreshes every provider, charts fixed on Bybit/Coinbase, Kraken grid
   fixed.

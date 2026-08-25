@@ -95,6 +95,9 @@ private val Context.settingsStore by preferencesDataStore(name = "settings")
 
 enum class ThemeMode { SYSTEM, DARK, LIGHT }
 
+/** Stile visivo: Classic (flat AMOLED) o Neon (contorno ciano glow). */
+enum class AppStyle { CLASSIC, NEON }
+
 /** Modalità dati: Realtime (WS in foreground service) o Risparmio (poll 15 min). */
 enum class DataMode { REALTIME, SAVER }
 
@@ -126,6 +129,7 @@ data class PerCoinProviders(val map: Map<String, String> = emptyMap())
 
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val appStyle: AppStyle = AppStyle.CLASSIC,
     val dataMode: DataMode = DataMode.SAVER,
     /** Sorgente dati di default per le nuove coppie (AUTO = migliore disponibile). */
     val defaultProvider: ProviderSelection = ProviderSelection.AUTO,
@@ -145,6 +149,8 @@ class SettingsRepository(context: Context) {
         Settings(
             themeMode = p[KEY_THEME]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() }
                 ?: ThemeMode.SYSTEM,
+            appStyle = p[KEY_APP_STYLE]?.let { runCatching { AppStyle.valueOf(it) }.getOrNull() }
+                ?: AppStyle.CLASSIC,
             dataMode = p[KEY_MODE]?.let { runCatching { DataMode.valueOf(it) }.getOrNull() }
                 ?: DataMode.SAVER,
             defaultProvider = p[KEY_DEFAULT_PROVIDER]
@@ -158,6 +164,7 @@ class SettingsRepository(context: Context) {
     }
 
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[KEY_THEME] = mode.name }
+    suspend fun setAppStyle(style: AppStyle) = store.edit { it[KEY_APP_STYLE] = style.name }
     suspend fun setDataMode(mode: DataMode) = store.edit { it[KEY_MODE] = mode.name }
     suspend fun setDefaultProvider(sel: ProviderSelection) =
         store.edit { it[KEY_DEFAULT_PROVIDER] = sel.name }
@@ -175,6 +182,7 @@ class SettingsRepository(context: Context) {
 
     private companion object {
         val KEY_THEME = stringPreferencesKey("theme_mode")
+        val KEY_APP_STYLE = stringPreferencesKey("app_style")
         val KEY_MODE = stringPreferencesKey("data_mode")
         val KEY_DEFAULT_PROVIDER = stringPreferencesKey("default_provider")
         val KEY_PER_COIN_PROVIDERS = stringPreferencesKey("per_coin_providers")

@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.ui.graphics.Color
+import androidx.glance.appwidget.updateAll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -38,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
 import com.adgent.trader.core.service.PriceFeedController
+import com.adgent.trader.data.AppStyle
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.data.Settings
 import com.adgent.trader.data.ThemeMode
@@ -61,6 +63,13 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         }
 
     fun setTheme(mode: ThemeMode) = viewModelScope.launch { repo.setTheme(mode) }
+
+    /** Cambia lo stile visivo e ridisegna subito i widget home (Classic/Neon). */
+    fun setAppStyle(context: android.content.Context, style: AppStyle) = viewModelScope.launch {
+        repo.setAppStyle(style)
+        com.adgent.trader.ui.widgets.TickerWidget().updateAll(context)
+        com.adgent.trader.ui.widgets.WatchlistWidget().updateAll(context)
+    }
 
     /** Sorgente dati di default per le nuove coppie (AUTO = migliore disponibile). */
     fun setDefaultProvider(sel: com.adgent.trader.data.ProviderSelection) =
@@ -236,6 +245,25 @@ fun SettingsScreen(
                     FilterChip(
                         selected = current.themeMode == mode,
                         onClick = { vm.setTheme(mode) },
+                        label = { Text(label) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Card style. Classic is the flat look; Neon adds a blue glowing outline to prices, cards and home widgets.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    AppStyle.CLASSIC to "Classic",
+                    AppStyle.NEON to "Neon",
+                ).forEach { (style, label) ->
+                    FilterChip(
+                        selected = current.appStyle == style,
+                        onClick = { vm.setAppStyle(context, style) },
                         label = { Text(label) },
                     )
                 }

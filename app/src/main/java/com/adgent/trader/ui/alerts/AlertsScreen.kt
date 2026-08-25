@@ -45,6 +45,7 @@ import com.adgent.trader.core.notifications.Notifications
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.CoinBadge
+import com.adgent.trader.ui.theme.neonCardFrame
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -194,6 +195,7 @@ private fun AlertRow(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(16.dp),
         modifier = Modifier
+            .neonCardFrame(RoundedCornerShape(16.dp))
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp),
     ) {

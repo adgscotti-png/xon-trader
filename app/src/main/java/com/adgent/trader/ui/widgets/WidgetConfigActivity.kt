@@ -47,10 +47,12 @@ import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.core.common.NumberFormatMode
 import com.adgent.trader.core.work.WidgetUpdateWorker
+import com.adgent.trader.data.AppStyle
 import com.adgent.trader.ui.theme.AdgentTraderTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 /**
  * Configurazione di un widget home screen (aperta dal picker o da
@@ -76,8 +78,12 @@ class WidgetConfigActivity : ComponentActivity() {
         // Finché non si salva, il piazzamento del widget viene annullato.
         setResult(RESULT_CANCELED)
 
+        val appStyle = runBlocking {
+            runCatching { applicationContext.appContainer.settingsRepo.settings.first().appStyle }
+                .getOrDefault(AppStyle.CLASSIC)
+        }
         setContent {
-            AdgentTraderTheme(darkTheme = true) {
+            AdgentTraderTheme(darkTheme = true, appStyle = appStyle) {
                 Surface(
                     color = MaterialTheme.colorScheme.background,
                     modifier = Modifier.fillMaxSize(),

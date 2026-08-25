@@ -68,6 +68,7 @@ import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.theme.BrandGradient
 import com.adgent.trader.ui.theme.MarketGreen
 import com.adgent.trader.ui.theme.MarketRed
+import com.adgent.trader.ui.theme.neonCardFrame
 
 /**
  * Dettaglio coin (F2): prezzo live, grafico interattivo con timeframe,
@@ -189,6 +190,7 @@ fun CoinDetailScreen(
             color = MaterialTheme.colorScheme.surfaceContainerLow,
             shape = RoundedCornerShape(20.dp),
             modifier = Modifier
+                .neonCardFrame(RoundedCornerShape(20.dp))
                 .fillMaxWidth()
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
@@ -457,6 +459,7 @@ private fun StatsCard(state: CoinDetailUiState) {
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(18.dp),
         modifier = Modifier
+            .neonCardFrame(RoundedCornerShape(18.dp))
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 4.dp),
     ) {

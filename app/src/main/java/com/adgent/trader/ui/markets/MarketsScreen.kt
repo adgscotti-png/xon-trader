@@ -66,6 +66,7 @@ import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.ChangeBadge
 import com.adgent.trader.ui.components.CoinBadge
 import com.adgent.trader.ui.components.PriceText
+import com.adgent.trader.ui.theme.neonCardFrame
 import kotlinx.coroutines.delay
 
 /**
@@ -314,7 +315,7 @@ private fun MarketCard(
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(18.dp),
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.neonCardFrame(RoundedCornerShape(18.dp)).fillMaxWidth(),
     ) {
         Column(
             modifier = Modifier
