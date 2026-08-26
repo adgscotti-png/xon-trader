@@ -2,12 +2,14 @@ package com.adgent.trader
 
 import android.app.Application
 import android.content.Context
+import com.adgent.trader.core.database.TickerCacheDao
 import com.adgent.trader.core.database.TraderDatabase
 import com.adgent.trader.core.provider.AutoProviderRouter
 import com.adgent.trader.core.provider.MarketCatalog
 import com.adgent.trader.core.provider.PriceFeedHub
 import com.adgent.trader.core.provider.ProviderRegistry
 import com.adgent.trader.core.provider.SymbolMapper
+import com.adgent.trader.core.service.AlertBoundaryIndex
 import com.adgent.trader.core.service.LiveFeedLifecycleController
 import com.adgent.trader.data.AlertRepository
 import com.adgent.trader.data.ChartRepository
@@ -42,6 +44,12 @@ class AppContainer(app: Application) {
     private val mapper = SymbolMapper()
     private val db: TraderDatabase = TraderDatabase.build(app)
 
+    val tickerCacheDao: TickerCacheDao = db.tickerCacheDao()
+    /** Cooldown anti-spam condiviso tra hub (WS in primo piano) e poller di
+     *  PriceFeedService (background): un alert appena scattato non riscatta al
+     *  passaggio foreground↔background. */
+    val alertBoundaryIndex = AlertBoundaryIndex()
+
     val providerRegistry = ProviderRegistry(okHttp, mapper, appScope)
     val marketCatalog = MarketCatalog(db.symbolsDao(), mapper)
 
@@ -55,10 +63,10 @@ class AppContainer(app: Application) {
     val autoProviderRouter = AutoProviderRouter(mapper, providerRegistry)
     val priceFeedHub = PriceFeedHub(
         providerRegistry, watchlistRepo, settingsRepo, alertRepo, autoProviderRouter, mapper,
-        db.tickerCacheDao(), appScope,
+        tickerCacheDao, alertBoundaryIndex, appScope,
     )
     val marketDataRepo = MarketDataRepository(
-        marketCatalog, providerRegistry, priceFeedHub, db.tickerCacheDao(), mapper,
+        marketCatalog, providerRegistry, priceFeedHub, tickerCacheDao, mapper,
     )
     val chartRepo = ChartRepository(providerRegistry, db.klinesDao())
 

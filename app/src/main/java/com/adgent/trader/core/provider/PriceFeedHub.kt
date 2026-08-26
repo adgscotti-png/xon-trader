@@ -13,6 +13,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
@@ -43,9 +44,10 @@ enum class HubMode {
  * [HubMode.FULL], la cache Room (sparkline preservata) + liveVersion.
  *
  * In background la modalità scende a [HubMode.ALERT_ONLY] (REALTIME) o [HubMode.CLOSED]
- * (SAVER): niente connessioni inutili, batteria rispettata. In ALERT_ONLY i tick dei
- * simboli con avvisi alimentano [AlertBoundaryIndex] e l'evento emesso su
- * [alertTriggers] viene solo notificato (nessuna scrittura Room per tick).
+ * (SAVER): niente connessioni, batteria rispettata. ALERT_ONLY NON apre WebSocket:
+ * la valutazione degli avvisi passa al polling REST leggero di
+ * [com.adgent.trader.core.service.PriceFeedService] (latenza ≤5s). In FULL i tick
+ * della watchlist alimentano la cache e gli avvisi via [alertTriggers].
  *
  * Tutte le riconciliazioni passano dal mutex (fix race: prima `setForeground` si
  * sincronizzava ma il collector di `start()` chiamava `syncWith` senza mutex).
@@ -58,13 +60,13 @@ class PriceFeedHub(
     private val router: AutoProviderRouter,
     private val mapper: SymbolMapper,
     private val tickerCacheDao: TickerCacheDao,
+    private val alertIndex: AlertBoundaryIndex,
     private val scope: CoroutineScope,
 ) {
     private val live = ConcurrentHashMap<String, PriceTick>() // "$provider:$symbol"
     private val desiredKeys = ConcurrentHashMap.newKeySet<String>()
     private val subscribed = ConcurrentHashMap<ProviderId, Set<String>>()
     private val syncMutex = Mutex()
-    private val alertIndex = AlertBoundaryIndex()
 
     private val _liveVersion = MutableStateFlow(0L)
     val liveVersion = _liveVersion.asStateFlow()
@@ -79,10 +81,10 @@ class PriceFeedHub(
 
     // Default ALERT_ONLY: un processo avviato senza UI (es. boot, REALTIME) non
     // deve aprire la watchlist piena; onStart promuove a FULL appena c'è un'attività.
-    @Volatile private var mode: HubMode = HubMode.ALERT_ONLY
+    private val _mode = MutableStateFlow(HubMode.ALERT_ONLY)
+    val mode: StateFlow<HubMode> = _mode.asStateFlow()
     @Volatile private var isRealtime = true
     @Volatile private var lastDesired: Map<ProviderId, Set<String>> = emptyMap()
-    @Volatile private var alertDesired: Map<ProviderId, Set<String>> = emptyMap()
     @Volatile private var syncRequested = false
     private var job: Job? = null
 
@@ -91,8 +93,8 @@ class PriceFeedHub(
 
     /** Cambia lo stato di apertura (chiamato dal ciclo di vita del processo). */
     fun setMode(newMode: HubMode) {
-        if (mode == newMode) return
-        mode = newMode
+        if (_mode.value == newMode) return
+        _mode.value = newMode
         reconcile()
     }
 
@@ -113,17 +115,10 @@ class PriceFeedHub(
                     val provider = router.resolve(pair, perCoin, default, health)
                     desired.getOrPut(provider) { mutableSetOf() }.add(item.symbol)
                 }
-                val enabledRules = rules.filter { it.enabled }
-                val aDesired = HashMap<ProviderId, MutableSet<String>>()
-                for (rule in enabledRules) {
-                    val p = ProviderId.fromName(rule.provider) ?: continue
-                    aDesired.getOrPut(p) { mutableSetOf() }.add(rule.symbol)
-                }
                 // Stato volatile letto a esecuzione da sync(): il combine non riconcilia più.
                 isRealtime = settings.dataMode == DataMode.REALTIME
                 lastDesired = desired
-                alertDesired = aDesired
-                alertIndex.rebuild(enabledRules)
+                alertIndex.rebuild(rules.filter { it.enabled })
             }.collect { reconcile() }
         }
         registry.all().forEach { p ->
@@ -145,10 +140,13 @@ class PriceFeedHub(
         }
     }
 
-    private fun effectiveDesired(): Map<ProviderId, Set<String>> = when (mode) {
+    private fun effectiveDesired(): Map<ProviderId, Set<String>> = when (_mode.value) {
         HubMode.CLOSED -> emptyMap()
         HubMode.FULL -> lastDesired
-        HubMode.ALERT_ONLY -> if (isRealtime) alertDesired else emptyMap()
+        // ALERT_ONLY: niente WebSocket in background. Gli avvisi li valida il
+        // polling REST leggero di PriceFeedService (latenza ≤5s, budget 1-5s),
+        // quindi qui non va tenuto aperto alcun stream.
+        HubMode.ALERT_ONLY -> emptyMap()
     }
 
     /** Apre/chiude gli stream per convergere sullo stato corrente (mode + desiderata). */
@@ -183,7 +181,7 @@ class PriceFeedHub(
     }
 
     private suspend fun onTicks(provider: ProviderId, batch: List<PriceTick>) {
-        val full = mode == HubMode.FULL
+        val full = _mode.value == HubMode.FULL
         val alerts = isRealtime
         var any = false
         val now = System.currentTimeMillis()
