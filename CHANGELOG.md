@@ -2,6 +2,13 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [4.0.2b] — 2026-08-26
+
+### Changed
+- **Split-flap style only** — every flap on the Favorites board now has the same width, like the original airport boards where each space was identical for a single number or letter. Dot and comma are no longer narrower than the digits.
+- **Price** — numbers are bigger and the cells are wider (double the standard flap width): the price moved to its own line so the wider cells fit.
+- **Percentage** — same font size as before, but each cell is double the width, all equal.
+
 ## [4.0.2] — 2026-08-26
 
 ### Added
