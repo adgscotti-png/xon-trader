@@ -417,7 +417,10 @@ private fun FlapRow(row: MarketRow, click: Modifier) {
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth().then(click),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.End,
+        ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(row.base, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FlapInk, maxLines = 1, overflow = TextOverflow.Ellipsis)

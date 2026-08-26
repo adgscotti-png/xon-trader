@@ -2,6 +2,11 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [4.0.2c] — 2026-08-26
+
+### Changed
+- **Split-flap style only** — the price and the percentage on the Favorites board are now right-aligned.
+
 ## [4.0.2b] — 2026-08-26
 
 ### Changed
