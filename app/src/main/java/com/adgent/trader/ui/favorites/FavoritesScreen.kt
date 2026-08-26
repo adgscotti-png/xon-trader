@@ -404,7 +404,12 @@ private fun Modifier.retroBevel(): Modifier = drawBehind {
     drawRect(RetroBorder, topLeft = Offset(inset, 3.dp.toPx()), size = Size(size.width - inset * 2, 1.dp.toPx()))
 }
 
-/** Riga Split-flap: tabellone aeroportuale, simbolo come codice volo. */
+/**
+ * Riga Split-flap: tabellone aeroportuale, simbolo come codice volo. Come nei
+ * tabelloni veri ogni spazio ha la STESSA larghezza (numero o lettera): prezzo e
+ * variazione usano moduli uniformi larghi il doppio di un digit standard — il
+ * prezzo su una riga propria così le caselle ci stanno larghe.
+ */
 @Composable
 private fun FlapRow(row: MarketRow, click: Modifier) {
     Surface(
@@ -412,26 +417,31 @@ private fun FlapRow(row: MarketRow, click: Modifier) {
         shape = RoundedCornerShape(8.dp),
         modifier = Modifier.fillMaxWidth().then(click),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(row.base, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FlapInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("${row.symbol} · ${row.provider.label}", fontSize = 11.sp, color = FlapDim, letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(row.base, fontSize = 15.sp, fontWeight = FontWeight.Bold, color = FlapInk, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text("${row.symbol} · ${row.provider.label}", fontSize = 11.sp, color = FlapDim, letterSpacing = 1.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Spacer(Modifier.width(10.dp))
+                SplitFlapRow(text = row.base.take(5), fontSize = 14.sp, color = FlapDim)
             }
-            Spacer(Modifier.width(10.dp))
-            SplitFlapRow(text = row.base.take(5), fontSize = 14.sp, color = FlapDim)
-            Spacer(Modifier.width(10.dp))
-            Column(horizontalAlignment = Alignment.End) {
-                SplitFlapRow(text = flapPrice(row), fontSize = 17.sp, color = FlapInk)
-                Spacer(Modifier.height(3.dp))
-                SplitFlapRow(
-                    text = flapPercent(row.changePercent24h),
-                    fontSize = 11.sp,
-                    color = if (row.changePercent24h >= 0) FlapUp else FlapDown,
-                )
-            }
+            Spacer(Modifier.height(8.dp))
+            SplitFlapRow(
+                text = flapPrice(row),
+                fontSize = 20.sp,
+                color = FlapInk,
+                uniformWidth = true,
+                cellWidthFactor = 2f,
+            )
+            Spacer(Modifier.height(4.dp))
+            SplitFlapRow(
+                text = flapPercent(row.changePercent24h),
+                fontSize = 11.sp,
+                color = if (row.changePercent24h >= 0) FlapUp else FlapDown,
+                uniformWidth = true,
+                cellWidthFactor = 2f,
+            )
         }
     }
 }

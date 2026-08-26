@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,8 +56,11 @@ private val FlapModuleGradient = Brush.verticalGradient(listOf(Color(0xFF262C34)
 /**
  * Riga di moduli split-flap (tabellone aeroportuale): ogni carattere è una card
  * che "si capovolge" al cambio (prima la metà alta, poi la metà bassa). I moduli
- * in cui il carattere non cambia restano fermi. [fontSize] scala l'intero modulo
- * (larghezza per carattere + altezza 2.05em, come la preview).
+ * in cui il carattere non cambia restano fermi. [fontSize] scala l'altezza del
+ * modulo (2.05em). Di default la larghezza dipende dal carattere
+ * ([flapCharWidth]); con [uniformWidth] = true tutti i moduli hanno la STESSA
+ * larghezza (digit base 0.62em × [cellWidthFactor]) come nei tabelloni veri,
+ * dove ogni spazio era identico per numero o lettera.
  */
 @Composable
 fun SplitFlapRow(
@@ -64,13 +68,19 @@ fun SplitFlapRow(
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 16.sp,
     color: Color = FlapInk,
+    uniformWidth: Boolean = false,
+    cellWidthFactor: Float = 1f,
 ) {
+    val density = LocalDensity.current
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         text.forEachIndexed { i, ch ->
-            key(i) { SplitFlapDigit(char = ch, fontSize = fontSize, color = color) }
+            val w = with(density) {
+                (fontSize.value * (if (uniformWidth) 0.62f * cellWidthFactor else flapCharWidth(char = ch))).dp
+            }
+            key(i) { SplitFlapDigit(char = ch, moduleWidth = w, fontSize = fontSize, color = color) }
         }
     }
 }
@@ -78,11 +88,11 @@ fun SplitFlapRow(
 @Composable
 internal fun SplitFlapDigit(
     char: Char,
+    moduleWidth: Dp,
     fontSize: TextUnit,
     color: Color,
 ) {
     val density = LocalDensity.current
-    val moduleW = with(density) { (fontSize.value * flapCharWidth(char)).dp }
     val moduleH = with(density) { (fontSize.value * 2.05f).dp }
     val lineHeight = fontSize * 2.05f
     val cameraDist = with(density) { moduleH.toPx() * 3f }
@@ -110,7 +120,7 @@ internal fun SplitFlapDigit(
 
     Box(
         modifier = Modifier
-            .width(moduleW)
+            .width(moduleWidth)
             .height(moduleH)
             .background(FlapModuleGradient, RoundedCornerShape(4.dp))
             .border(1.dp, Color.Black.copy(alpha = 0.7f), RoundedCornerShape(4.dp))
