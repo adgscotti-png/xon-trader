@@ -2,6 +2,11 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [4.0.1] — 2026-08-26
+
+### Changed
+- **Background network** — in Realtime mode the app no longer keeps any WebSocket open while in the background. Alert evaluation moves to a lightweight adaptive REST poll: a single batched request per exchange, every 5 s when a price is within 1% of its threshold, 10 s within 3%, 20 s within 10%, and 30 s when far away. Between polls the process sleeps, so background traffic drops from roughly 11 packets/s to ~0.1 packets/s (worst case ~1 packet/s) while alert latency stays within 1–5 s. Home-screen widgets are unaffected (15-minute worker, tap-to-refresh).
+
 ## [4.0] — 2026-08-25
 
 ### Changed
