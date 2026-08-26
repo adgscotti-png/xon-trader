@@ -41,6 +41,7 @@ import com.adgent.trader.AppContainer
 import com.adgent.trader.core.service.PriceFeedController
 import com.adgent.trader.data.AppStyle
 import com.adgent.trader.data.DataMode
+import com.adgent.trader.data.FavoritesStyle
 import com.adgent.trader.data.Settings
 import com.adgent.trader.data.ThemeMode
 import com.adgent.trader.ui.appViewModel
@@ -70,6 +71,10 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
         com.adgent.trader.ui.widgets.TickerWidget().updateAll(context)
         com.adgent.trader.ui.widgets.WatchlistWidget().updateAll(context)
     }
+
+    /** Stile grafico della pagina Preferiti (Classic/Neon/Retro/Split-flap). */
+    fun setFavoritesStyle(style: com.adgent.trader.data.FavoritesStyle) =
+        viewModelScope.launch { repo.setFavoritesStyle(style) }
 
     /** Sorgente dati di default per le nuove coppie (AUTO = migliore disponibile). */
     fun setDefaultProvider(sel: com.adgent.trader.data.ProviderSelection) =
@@ -265,6 +270,30 @@ fun SettingsScreen(
                         selected = current.appStyle == style,
                         onClick = { vm.setAppStyle(context, style) },
                         label = { Text(label) },
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Favorites style. The look of the Favorites page only — the flat " +
+                    "Classic card, the Neon glow, a Retro 8-bit terminal, or a " +
+                    "Split-flap airport board. Markets, Alerts and charts keep the " +
+                    "global style above.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.height(8.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(FavoritesStyle.entries) { style ->
+                    FilterChip(
+                        selected = current.favoritesStyle == style,
+                        onClick = { vm.setFavoritesStyle(style) },
+                        label = { Text(style.label) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.primary,
+                            selectedLabelColor = Color.White,
+                        ),
+                        border = null,
                     )
                 }
             }

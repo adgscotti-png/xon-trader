@@ -98,6 +98,14 @@ enum class ThemeMode { SYSTEM, DARK, LIGHT }
 /** Stile visivo: Classic (flat AMOLED) o Neon (contorno ciano glow). */
 enum class AppStyle { CLASSIC, NEON }
 
+/** Stile grafico della pagina Preferiti: indipendente dallo stile globale. */
+enum class FavoritesStyle(val label: String) {
+    CLASSIC("Classic"),
+    NEON("Neon"),
+    RETRO("Retro 8-bit"),
+    SPLITFLAP("Split-flap"),
+}
+
 /** Modalità dati: Realtime (WS in foreground service) o Risparmio (poll 15 min). */
 enum class DataMode { REALTIME, SAVER }
 
@@ -130,6 +138,8 @@ data class PerCoinProviders(val map: Map<String, String> = emptyMap())
 data class Settings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val appStyle: AppStyle = AppStyle.CLASSIC,
+    /** Stile grafico della pagina Preferiti (Classic/Neon/Retro/Split-flap). */
+    val favoritesStyle: FavoritesStyle = FavoritesStyle.CLASSIC,
     val dataMode: DataMode = DataMode.SAVER,
     /** Sorgente dati di default per le nuove coppie (AUTO = migliore disponibile). */
     val defaultProvider: ProviderSelection = ProviderSelection.AUTO,
@@ -151,6 +161,9 @@ class SettingsRepository(context: Context) {
                 ?: ThemeMode.SYSTEM,
             appStyle = p[KEY_APP_STYLE]?.let { runCatching { AppStyle.valueOf(it) }.getOrNull() }
                 ?: AppStyle.CLASSIC,
+            favoritesStyle = p[KEY_FAVORITES_STYLE]
+                ?.let { runCatching { FavoritesStyle.valueOf(it) }.getOrNull() }
+                ?: FavoritesStyle.CLASSIC,
             dataMode = p[KEY_MODE]?.let { runCatching { DataMode.valueOf(it) }.getOrNull() }
                 ?: DataMode.SAVER,
             defaultProvider = p[KEY_DEFAULT_PROVIDER]
@@ -165,6 +178,8 @@ class SettingsRepository(context: Context) {
 
     suspend fun setTheme(mode: ThemeMode) = store.edit { it[KEY_THEME] = mode.name }
     suspend fun setAppStyle(style: AppStyle) = store.edit { it[KEY_APP_STYLE] = style.name }
+    suspend fun setFavoritesStyle(style: FavoritesStyle) =
+        store.edit { it[KEY_FAVORITES_STYLE] = style.name }
     suspend fun setDataMode(mode: DataMode) = store.edit { it[KEY_MODE] = mode.name }
     suspend fun setDefaultProvider(sel: ProviderSelection) =
         store.edit { it[KEY_DEFAULT_PROVIDER] = sel.name }
@@ -183,6 +198,7 @@ class SettingsRepository(context: Context) {
     private companion object {
         val KEY_THEME = stringPreferencesKey("theme_mode")
         val KEY_APP_STYLE = stringPreferencesKey("app_style")
+        val KEY_FAVORITES_STYLE = stringPreferencesKey("favorites_style")
         val KEY_MODE = stringPreferencesKey("data_mode")
         val KEY_DEFAULT_PROVIDER = stringPreferencesKey("default_provider")
         val KEY_PER_COIN_PROVIDERS = stringPreferencesKey("per_coin_providers")

@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.CandlestickChart
+import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -44,6 +45,7 @@ import com.adgent.trader.data.Settings
 import com.adgent.trader.data.ThemeMode
 import com.adgent.trader.ui.alerts.AlertsScreen
 import com.adgent.trader.ui.coin.CoinDetailScreen
+import com.adgent.trader.ui.favorites.FavoritesScreen
 import com.adgent.trader.ui.settings.SettingsScreen
 import com.adgent.trader.ui.markets.MarketsScreen
 import com.adgent.trader.ui.theme.AdgentTraderTheme
@@ -109,6 +111,7 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
 
     val tabs = listOf(
         TopLevelItem("markets", "Markets", Icons.Rounded.CandlestickChart),
+        TopLevelItem("favorites", "Favorites", Icons.Rounded.Star),
         TopLevelItem("alerts", "Alerts", Icons.Outlined.Notifications),
         TopLevelItem("settings", "Settings", Icons.Outlined.Settings),
     )
@@ -179,6 +182,13 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
         ) {
             composable("markets") {
                 MarketsScreen(
+                    onOpenCoin = { symbol, providerName ->
+                        navController.navigate("coin/$symbol?provider=$providerName")
+                    },
+                )
+            }
+            composable("favorites") {
+                FavoritesScreen(
                     onOpenCoin = { symbol, providerName ->
                         navController.navigate("coin/$symbol?provider=$providerName")
                     },

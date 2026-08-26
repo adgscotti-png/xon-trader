@@ -19,7 +19,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 enum class MarketFilter(val label: String) {
-    FAVORITES("Favorites"),
     TOP("All"),
     GAINERS("Gainers"),
     LOSERS("Losers"),
@@ -27,8 +26,6 @@ enum class MarketFilter(val label: String) {
 
 data class MarketsUiState(
     val rows: List<MarketRow> = emptyList(),
-    /** Righe Favorites: la watchlist risolta sul provider EFFETTIVO per coppia. */
-    val favRows: List<MarketRow> = emptyList(),
     val provider: ProviderSelection = ProviderSelection.AUTO,
     val filter: MarketFilter = MarketFilter.TOP,
     val query: String = "",
@@ -55,7 +52,6 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     private val watchlistRepo = container.watchlistRepo
     private val registry = container.providerRegistry
     private val settingsRepo = container.settingsRepo
-    private val router = container.autoProviderRouter
 
     private val _state = MutableStateFlow(MarketsUiState())
     val state = _state.asStateFlow()
@@ -91,59 +87,8 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                     ) { cached, favs, _ -> buildRows(cached, favs, sel) }
                 }
                 .collect { rows ->
-                    _state.update { it.copy(rows = applyFilter(rows, it.filter, it.favRows), loading = false) }
+                    _state.update { it.copy(rows = applyFilter(rows, it.filter), loading = false) }
                 }
-        }
-
-        // Righe Favorites: la watchlist risolta sul provider EFFETTIVO (override
-        // per-coin → default → priorità), così badge/live/tap seguono la scelta
-        // fatta nel coin detail anche se la coppia è archiviata sotto Binance.
-        scope.launch {
-            combine(
-                watchlistRepo.observe(),
-                settingsRepo.settings,
-                registry.health,
-                marketDataRepo.observeCached(null, 1_000),
-                marketDataRepo.liveVersion(),
-            ) { favs, settings, health, cached, _ ->
-                Triple(favs, settings, health) to cached.associateBy { "${it.provider}:${it.symbol}" }
-            }.collect { (ctx, byKey) ->
-                val (favs, settings, health) = ctx
-                val rows = favs.mapNotNull { fav ->
-                    val stored = ProviderId.fromName(fav.provider) ?: ProviderId.BINANCE
-                    val pair = marketDataRepo.fromCompact(fav.symbol) ?: return@mapNotNull null
-                    // Priorità: override per-coin (scelta esplicita nel coin detail) →
-                    // provider ARCHIVIATO (scelta esplicita al momento del preferito) →
-                    // fallback (default → miglior provider). Il provider archiviato NON
-                    // va scavalcato dal default: un preferito aggiunto da Kraken restava
-                    // su OKX solo perché il default era OKX.
-                    val hasOverride = settings.perCoinProviders.containsKey(pair.key)
-                    val eff = if (hasOverride || !router.isUsable(stored, health)) {
-                        router.resolve(pair, settings.perCoinProviders, settings.defaultProvider.providerId, health)
-                    } else {
-                        stored
-                    }
-                    val effCache = byKey["${eff.name}:${fav.symbol}"]
-                    val storedCache = byKey["${stored.name}:${fav.symbol}"]
-                    val c = effCache ?: storedCache
-                    val rowProvider = if (effCache != null) eff else if (c != null) stored else eff
-                    val live = marketDataRepo.liveTick(rowProvider, fav.symbol)
-                    MarketRow(
-                        symbol = fav.symbol,
-                        base = bases[fav.symbol] ?: pair.base,
-                        price = live?.price ?: c?.price ?: 0.0,
-                        changePercent24h = live?.changePercent24h ?: c?.changePercent24h ?: 0.0,
-                        high24h = live?.high24h ?: c?.high24h ?: 0.0,
-                        low24h = live?.low24h ?: c?.low24h ?: 0.0,
-                        quoteVolume24h = live?.quoteVolume24h ?: c?.quoteVolume24h ?: 0.0,
-                        sparkline = c?.sparkline?.split(",")?.mapNotNull { s -> s.toDoubleOrNull() } ?: emptyList(),
-                        isFavorite = true,
-                        provider = rowProvider,
-                        storedProvider = stored,
-                    )
-                }
-                _state.update { it.copy(favRows = rows) }
-            }
         }
 
         // Sorgenti live per il badge (provider delle coppie in watchlist).
@@ -308,9 +253,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     private fun applyFilter(
         rows: List<MarketRow>,
         filter: MarketFilter,
-        favRows: List<MarketRow>,
     ): List<MarketRow> = when (filter) {
-        MarketFilter.FAVORITES -> favRows
         MarketFilter.TOP -> rows.sortedByDescending { it.quoteVolume24h }
         MarketFilter.GAINERS -> rows.filter { it.quoteVolume24h > 1_000_000 }
             .sortedByDescending { it.changePercent24h }
@@ -319,7 +262,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }.take(MAX_ROWS)
 
     fun setFilter(filter: MarketFilter) {
-        _state.update { it.copy(filter = filter, rows = applyFilter(it.rows, filter, it.favRows)) }
+        _state.update { it.copy(filter = filter, rows = applyFilter(it.rows, filter)) }
     }
 
     fun setSearching(active: Boolean) {
