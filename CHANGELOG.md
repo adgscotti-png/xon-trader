@@ -2,6 +2,17 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [4.0.2] — 2026-08-26
+
+### Added
+- **Separate Favorites tab** — a new **Favorites** page is reachable from the bottom navigation (star icon), independent from the Markets page. It shows the watchlist as a single-column list, with each row opening the coin detail or long-press to remove from the watchlist.
+- **Favorites style setting** — Settings → Appearance now has **Favorites style**: *Classic*, *Neon*, *Retro 8-bit* or *Split-flap*. It applies only to the Favorites page; Markets, Alerts, the coin detail and charts keep the global style above. Classic stays the default.
+- **Retro 8-bit** — an 80s terminal look with the pixel font "Press Start 2P" (bundled with the app): black cards with beveled edges, cyan/magenta/green accents, scanlines and vignette. When a price changes, the digits flicker like analog TV static for a split second and then settle on the new number.
+- **Split-flap** — the classic airport departure board: every digit and symbol is a flap card that flips over (top half first, then bottom half) when the value changes, with a flight-code strip showing the coin symbol and an amber header. Cards that don't change stay still.
+
+### Notes
+- App identity, signing key and widget layouts are unchanged; this is only a UI addition.
+
 ## [4.0.1] — 2026-08-26
 
 ### Changed
