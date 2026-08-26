@@ -3,8 +3,11 @@ package com.adgent.trader.ui.favorites
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
+import com.adgent.trader.core.model.Timeframe
+import com.adgent.trader.core.provider.LiveFocusSpec
 import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.data.MarketRow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -34,22 +37,29 @@ class FavoritesViewModel(container: AppContainer) : ViewModel() {
     private val registry = container.providerRegistry
     private val settingsRepo = container.settingsRepo
     private val router = container.autoProviderRouter
+    private val liveFocus = container.liveFocus
+    private val chartRepo = container.chartRepo
 
     private val _state = MutableStateFlow(FavoritesUiState())
     val state = _state.asStateFlow()
 
+    /** Preload grafici delle prime righe visibili: cancellato su focus-leave/onCleared. */
+    private var preloadJob: Job? = null
+    private var preloadArmed = false
+
     init {
         val scope = viewModelScope
 
-        // Righe: watchlist × settings × salute provider × cache × live hub.
+        // Righe: watchlist × settings × salute provider × cache. Niente live qui:
+        // i tick live vengono sovrapposti per-riga nella UI dalla hot map dell'hub
+        // (ricomposizione solo della riga cambiata, non dell'intera lista).
         scope.launch {
             combine(
                 watchlistRepo.observe(),
                 settingsRepo.settings,
                 registry.health,
                 marketDataRepo.observeCached(null, 1_000),
-                marketDataRepo.liveVersion(),
-            ) { favs, settings, health, cached, _ ->
+            ) { favs, settings, health, cached ->
                 Triple(favs, settings, health) to cached.associateBy { "${it.provider}:${it.symbol}" }
             }.collect { (ctx, byKey) ->
                 val (favs, settings, health) = ctx
@@ -71,15 +81,14 @@ class FavoritesViewModel(container: AppContainer) : ViewModel() {
                     val storedCache = byKey["${stored.name}:${fav.symbol}"]
                     val c = effCache ?: storedCache
                     val rowProvider = if (effCache != null) eff else if (c != null) stored else eff
-                    val live = marketDataRepo.liveTick(rowProvider, fav.symbol)
                     MarketRow(
                         symbol = fav.symbol,
                         base = pair.base,
-                        price = live?.price ?: c?.price ?: 0.0,
-                        changePercent24h = live?.changePercent24h ?: c?.changePercent24h ?: 0.0,
-                        high24h = live?.high24h ?: c?.high24h ?: 0.0,
-                        low24h = live?.low24h ?: c?.low24h ?: 0.0,
-                        quoteVolume24h = live?.quoteVolume24h ?: c?.quoteVolume24h ?: 0.0,
+                        price = c?.price ?: 0.0,
+                        changePercent24h = c?.changePercent24h ?: 0.0,
+                        high24h = c?.high24h ?: 0.0,
+                        low24h = c?.low24h ?: 0.0,
+                        quoteVolume24h = c?.quoteVolume24h ?: 0.0,
                         sparkline = c?.sparkline?.split(",")?.mapNotNull { s -> s.toDoubleOrNull() } ?: emptyList(),
                         isFavorite = true,
                         provider = rowProvider,
@@ -100,9 +109,55 @@ class FavoritesViewModel(container: AppContainer) : ViewModel() {
             }
         }
 
+        // Preload grafici sui Preferiti: mentre l'utente sta sul tab, precarica le
+        // candele default delle prime ~6-8 righe visibili (tap → grafico istantaneo).
+        // Cancellato quando si esce dal tab o il ViewModel muore.
+        scope.launch {
+            combine(liveFocus.spec, _state) { spec, s -> spec to s.rows }
+                .collect { (spec, rows) ->
+                    if (spec is LiveFocusSpec.Favorites && rows.isNotEmpty()) {
+                        if (!preloadArmed) {
+                            preloadArmed = true
+                            startPreload(rows)
+                        }
+                    } else {
+                        preloadArmed = false
+                        preloadJob?.cancel()
+                        preloadJob = null
+                    }
+                }
+        }
+
         scope.launch {
             watchlistRepo.ensureDefaults()
         }
+    }
+
+    /** Precarica candele + sparkline delle prime righe, sequenziali, a bassa priorità.
+     *  La cache klines fa da guardia TTL: una riga già pre-caricata viene saltata. */
+    private fun startPreload(rows: List<MarketRow>) {
+        val targets = rows.take(PRELOAD_ROWS)
+        var self: Job? = null
+        self = viewModelScope.launch {
+            for ((p, list) in targets.groupBy { it.provider }) {
+                // Un nuovo preload (o il focus-leave) ha preso il posto: fermati.
+                if (preloadJob != self) return@launch
+                runCatching { marketDataRepo.refreshSparklines(p, list.map { it.symbol }) }
+            }
+            for (row in targets) {
+                if (preloadJob != self) return@launch
+                val cached = runCatching { chartRepo.cached(row.provider, row.symbol, Timeframe.DEFAULT) }
+                    .getOrDefault(emptyList())
+                if (cached.isNotEmpty()) continue
+                runCatching { chartRepo.refresh(row.provider, row.symbol, Timeframe.DEFAULT) }
+            }
+        }
+        preloadJob = self
+    }
+
+    override fun onCleared() {
+        preloadJob?.cancel()
+        super.onCleared()
     }
 
     /** A schermo attivo (resume): refresh dei prezzi della watchlist (TTL cache). */
@@ -142,5 +197,10 @@ class FavoritesViewModel(container: AppContainer) : ViewModel() {
     /** La UI consuma il messaggio effimero (cap watchlist ecc.). */
     fun consumeMessage() {
         _state.update { it.copy(message = null) }
+    }
+
+    companion object {
+        /** Quante righe visibili pre-caricare (grafici pronti al tap). */
+        private const val PRELOAD_ROWS = 8
     }
 }

@@ -2,6 +2,31 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/), versioned with [SemVer](https://semver.org/).
 
+## [4.0.5] — 2026-08-26
+
+### Changed — battery & data architecture (the "maximum" rework)
+
+The app now uses only what it needs, when it needs it. Expected effect on battery: from a foreground service always on in Realtime mode (permanent "Price alerts active" notification, ~11 price writes/second on the whole watchlist) to roughly **zero background cost with no alerts**, and **1 REST check every 2–15 minutes** while you are away. This is the one to collaud over a full night.
+
+**Background — alerts only, via WorkManager (no more service, no permanent notification)**
+- Removed the foreground service `PriceFeedService` entirely: no permanent notification, no process kept alive, no `FOREGROUND_SERVICE` permissions.
+- Background price-alert checks now run through a **WorkManager chain** that schedules the next check based on how close prices are to your thresholds (2 min within 1%, 5 min within 3%, 10 min within 10%, otherwise 15 min). With zero enabled alerts the chain stops completely — no wake-ups at all.
+- The chain re-arms on app exit, on every alert create/edit/delete, and on device boot (only if there are enabled rules).
+
+**Foreground — live means "what you are looking at"**
+- New **Live Focus**: the WebSocket subscription follows you — Favorites → your watchlist, Markets → the rows actually visible on screen, Coin → that coin even if it is not in your watchlist, no price screen → no sockets at all. Alerts still evaluate instantly via WebSocket while the app is open (symbols with rules are always subscribed).
+- **Ticks in memory**: incoming prices update a hot map (cheap) and Room is flushed in a batch every ~5s instead of per-tick. The visible row updates the moment its price moves; other rows do not recompose.
+- **Markets opens instantly**: the grid boots from cache with only the current provider seeded; the other exchanges populate when you visit their chip or hit refresh (was: up to 7 exchanges × 120 tickers + 40 sparklines downloaded at every open).
+- **Favorites preloads charts**: while you are on the Favorites tab, the candles for the first ~8 visible rows are prefetched in the background (sequential, cancelable), so tapping a coin opens the chart instantly.
+- Coin detail updates per-tick (not waiting for the 5s flush) and chart loading is single-flight (no duplicate requests on quick timeframe/source switches).
+
+**Widgets**
+- Minimum auto-refresh is now **5 minutes** (options 5/15/30/60/120/360), backed by a one-shot WorkManager chain because the platform periodic job is floored at 15 minutes.
+- The widget worker refreshes **only the symbols of the widgets actually placed** (not the whole watchlist) and no longer evaluates alerts (that lives in the alert worker).
+
+**Notes for the collaudo**
+- While the app is open, prices and alerts stay instant as before. What changes is the background: alerts can arrive up to ~15 min later in deep sleep (the price of near-zero battery use). On phones with aggressive battery optimizers you may still want to exclude XON Trader from the battery optimization list so the background checks are not delayed.
+
 ## [4.0.2c] — 2026-08-26
 
 ### Changed

@@ -22,7 +22,6 @@ import com.adgent.trader.core.provider.ProviderId
 object Notifications {
 
     const val CHANNEL_PRICES = "prices"
-    const val CHANNEL_SERVICE = "service"
     const val CHANNEL_TEST = "test"
 
     /** ID azioni delle notifiche avviso. */
@@ -39,17 +38,15 @@ object Notifications {
                     NotificationManager.IMPORTANCE_HIGH,
                 ).apply { description = "Notifications when a symbol crosses the set threshold" },
                 NotificationChannel(
-                    CHANNEL_SERVICE,
-                    "Realtime feed",
-                    NotificationManager.IMPORTANCE_MIN,
-                ).apply { description = "Persistent notification of the realtime data service" },
-                NotificationChannel(
                     CHANNEL_TEST,
                     "Test",
                     NotificationManager.IMPORTANCE_DEFAULT,
                 ).apply { description = "Test notifications to check your settings" },
             )
         )
+        // Migrazione una tantum: il vecchio canale del servizio realtime non
+        // serve più (niente FGS); le notifiche persistenti sono sparite.
+        runCatching { nm.deleteNotificationChannel("service") }
     }
 
     fun canPost(context: Context): Boolean =
@@ -142,17 +139,6 @@ object Notifications {
             NotificationManagerCompat.from(context).notify(TEST_NOTIF_ID, notification)
         }.isSuccess
     }
-
-    /** Notifica persistente discreta del servizio realtime. */
-    fun serviceNotification(context: Context, text: String): android.app.Notification =
-        NotificationCompat.Builder(context, CHANNEL_SERVICE)
-            .setSmallIcon(R.drawable.ic_stat_alert)
-            .setContentTitle("XON Trader")
-            .setContentText(text)
-            .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_MIN)
-            .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
-            .build()
 
     /** Descrizione leggibile della regola (riusata da lista UI). */
     fun describe(rule: AlertRuleEntity): String {

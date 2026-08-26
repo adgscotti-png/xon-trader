@@ -9,10 +9,10 @@ import com.adgent.trader.core.model.AlertType
 import com.adgent.trader.core.model.Kline
 import com.adgent.trader.core.model.Timeframe
 import com.adgent.trader.core.provider.ProviderId
-import com.adgent.trader.core.service.PriceFeedController
-import com.adgent.trader.data.DataMode
+import com.adgent.trader.core.work.AlertScheduler
 import com.adgent.trader.ui.chart.ChartMode
 import com.adgent.trader.ui.chart.OscKind
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
@@ -89,9 +89,9 @@ class CoinDetailViewModel(
     val state = _state.asStateFlow()
 
     init {
-        // Prezzo live + stats 24h: priorità al tick del live hub (watchlist),
-        // fallback sulla riga cache Room (coin NON in watchlist, popolata dal
-        // refreshTickers on-open — senza fallback le stats restano vuote).
+        // Prezzo live + stats 24h: priorità al tick della hot map dell'hub (per-tick,
+        // non al flush Room), fallback sulla riga cache (coin NON in watchlist,
+        // popolata dal refreshTickers on-open — senza fallback le stats restano vuote).
         // flatMapLatest su (provider, symbol): dopo lo switch di fonte il
         // collector riosserva la nuova coppia invece di restare sull'originale.
         viewModelScope.launch {
@@ -99,7 +99,7 @@ class CoinDetailViewModel(
                 .distinctUntilChanged()
                 .flatMapLatest { (p, sym) ->
                     combine(
-                        marketDataRepo.liveVersion().map { marketDataRepo.liveTick(p, sym) },
+                        container.priceFeedHub.liveTickFlow(p, sym).distinctUntilChanged(),
                         marketDataRepo.observeCachedSymbol(p, sym),
                     ) { live, cached -> live to cached }
                 }
@@ -141,6 +141,10 @@ class CoinDetailViewModel(
                 }
         }
     }
+
+    /** Single-flight: cancella il caricamento grafico precedente (cambio rapido
+     *  di timeframe/provider: niente gare né richieste duplicate). */
+    private var chartJob: Job? = null
 
     /** Cambia la fonte per-coin: salva l'override e ricarica grafico + stats. */
     fun setProvider(newProvider: ProviderId) {
@@ -231,12 +235,9 @@ class CoinDetailViewModel(
                     provider = provider.name,
                 ),
             )
-            val realtime = runCatching {
-                container.settingsRepo.settings.first().dataMode
-            }.getOrDefault(DataMode.REALTIME) == DataMode.REALTIME
-            if (realtime) {
-                PriceFeedController.start(container.appContext)
-            }
+            // Avvia la catena WorkManager di verifica avvisi (l'alert appena creato
+            // deve poter scattare anche con l'app chiusa).
+            AlertScheduler.schedule(container.appContext, 0L)
             _state.update {
                 it.copy(
                     quickAlertMsg = "Alert created: ${it.base} " +
@@ -263,7 +264,8 @@ class CoinDetailViewModel(
         runCatching { watchlistRepo.contains(provider, symbol) }.getOrDefault(false)
 
     private fun loadTimeframe(tf: Timeframe, initial: Boolean = false) {
-        viewModelScope.launch {
+        chartJob?.cancel()
+        chartJob = viewModelScope.launch {
             val p = _state.value.provider
             val s = _state.value.symbol
             // Prima la cache (istantaneo), poi il refresh di rete.

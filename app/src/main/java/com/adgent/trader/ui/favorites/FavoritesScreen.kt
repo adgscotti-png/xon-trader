@@ -68,6 +68,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.adgent.trader.R
 import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.Format
+import com.adgent.trader.core.model.PriceTick
 import com.adgent.trader.data.FavoritesStyle
 import com.adgent.trader.data.MarketRow
 import com.adgent.trader.ui.appViewModel
@@ -118,6 +119,8 @@ fun FavoritesScreen(
     val style = settings?.favoritesStyle ?: FavoritesStyle.CLASSIC
 
     val state by vm.state.collectAsStateWithLifecycle()
+    // Hot map dei tick live: la riga che cambia si aggiorna subito, le altre no.
+    val liveTicks by context.appContainer.priceFeedHub.liveTicks.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         vm.onResume()
         onPauseOrDispose { }
@@ -160,7 +163,17 @@ fun FavoritesScreen(
                 ) {
                     // La stessa coppia può esistere su più exchange: chiave composta.
                     items(state.rows, key = { "${it.provider.name}:${it.symbol}" }) { row ->
-                        FavoriteRow(style = style, row = row, onOpenCoin = onOpenCoin, onToggleFavorite = vm::toggleFavorite)
+                        // Callback e tick stabiliti per riga: quando cambia il prezzo
+                        // live di un'altra riga, questa non viene ricomposta.
+                        val onOpen = remember(row) { { onOpenCoin(row.symbol, row.provider.name) } }
+                        val onToggle = remember(row) { { vm.toggleFavorite(row) } }
+                        FavoriteRow(
+                            style = style,
+                            row = row,
+                            live = liveTicks["${row.provider.name}:${row.symbol}"],
+                            onOpenCoin = onOpen,
+                            onToggleFavorite = onToggle,
+                        )
                     }
                 }
             }
@@ -263,18 +276,28 @@ private fun LiveBadge(style: FavoritesStyle, sources: List<String>) {
 private fun FavoriteRow(
     style: FavoritesStyle,
     row: MarketRow,
-    onOpenCoin: (String, String) -> Unit,
-    onToggleFavorite: (MarketRow) -> Unit,
+    live: PriceTick?,
+    onOpenCoin: () -> Unit,
+    onToggleFavorite: () -> Unit,
 ) {
+    // Il tick live della hot map (quando presente) sovrascrive prezzo/stats della
+    // cache: la riga mostra SEMPRE il valore più fresco, senza aspettare il flush.
+    val display = if (live != null) row.copy(
+        price = live.price,
+        changePercent24h = live.changePercent24h,
+        high24h = live.high24h,
+        low24h = live.low24h,
+        quoteVolume24h = live.quoteVolume24h,
+    ) else row
     val click = Modifier.combinedClickable(
-        onClick = { onOpenCoin(row.symbol, row.provider.name) },
-        onLongClick = { onToggleFavorite(row) },
+        onClick = onOpenCoin,
+        onLongClick = onToggleFavorite,
     )
     when (style) {
-        FavoritesStyle.CLASSIC -> ClassicRow(row, click)
-        FavoritesStyle.NEON -> NeonRow(row, click)
-        FavoritesStyle.RETRO -> RetroRow(row, click)
-        FavoritesStyle.SPLITFLAP -> FlapRow(row, click)
+        FavoritesStyle.CLASSIC -> ClassicRow(display, click)
+        FavoritesStyle.NEON -> NeonRow(display, click)
+        FavoritesStyle.RETRO -> RetroRow(display, click)
+        FavoritesStyle.SPLITFLAP -> FlapRow(display, click)
     }
 }
 

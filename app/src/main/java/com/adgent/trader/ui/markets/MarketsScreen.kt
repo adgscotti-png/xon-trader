@@ -49,10 +49,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +62,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.adgent.trader.appContainer
+import com.adgent.trader.core.model.PriceTick
+import com.adgent.trader.core.provider.ProviderId
 import com.adgent.trader.data.MarketRow
 import com.adgent.trader.data.ProviderSelection
 import com.adgent.trader.ui.appViewModel
@@ -271,8 +276,40 @@ private fun MarketGrid(
     showProvider: Boolean,
     showFavoriteToggle: Boolean = false,
 ) {
+    val context = LocalContext.current
+    val liveFocus = context.appContainer.liveFocus
+    val liveTicks by context.appContainer.priceFeedHub.liveTicks.collectAsStateWithLifecycle()
     val gridState = rememberLazyGridState()
     LaunchedEffect(resetKey) { gridState.scrollToItem(0) }
+
+    // Viewport → focus: solo le righe VISIBILI restano live (debounce anti-churn
+    // su scroll rapido). Quando scorri, prima le nuove righe diventano live, le
+    // fuori schermo vengono disiscritte dall'hub.
+    val firstIdx = gridState.firstVisibleItemIndex
+    val lastIdx = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: firstIdx
+    val viewportKey = if (rows.isEmpty()) "" else {
+        val f = firstIdx.coerceIn(0, rows.lastIndex)
+        val l = lastIdx.coerceIn(f, rows.lastIndex)
+        buildString {
+            for (i in f..l) {
+                val r = rows[i]
+                append(r.provider.name).append(':').append(r.symbol).append(',')
+            }
+        }
+    }
+    LaunchedEffect(viewportKey) {
+        if (viewportKey.isEmpty()) return@LaunchedEffect
+        val f = gridState.firstVisibleItemIndex.coerceAtLeast(0)
+        val l = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index?.coerceAtLeast(f) ?: f
+        if (rows.isEmpty() || f >= rows.size) return@LaunchedEffect
+        val slice = rows.subList(f, minOf(l + 1, rows.size))
+        if (slice.isEmpty()) return@LaunchedEffect
+        val byProvider = HashMap<ProviderId, MutableSet<String>>()
+        slice.forEach { r -> byProvider.getOrPut(r.provider) { mutableSetOf() }.add(r.symbol) }
+        delay(300)
+        liveFocus.onMarketsViewport(byProvider.mapValues { it.value.toSet() })
+    }
+
     LazyVerticalGrid(
         state = gridState,
         columns = GridCells.Fixed(2),
@@ -283,16 +320,18 @@ private fun MarketGrid(
     ) {
         // La stessa coppia può esistere su più exchange: chiave composta.
         items(rows, key = { "${it.provider.name}:${it.symbol}" }) { row ->
+            // Callback e tick stabiliti per riga: quando cambia SOLO il prezzo live
+            // di un'altra riga, questa non viene ricomposta.
+            val onOpen = remember(row) { { onOpenCoin(row.symbol, row.provider.name) } }
+            val onToggle = remember(row) { { onToggleFavorite(row) } }
             MarketCard(
                 row = row,
+                live = liveTicks["${row.provider.name}:${row.symbol}"],
                 showFavorite = row.isFavorite,
                 showFavoriteToggle = showFavoriteToggle,
                 showProvider = showProvider,
-                onToggleFavorite = { onToggleFavorite(row) },
-                modifier = Modifier.combinedClickable(
-                    onClick = { onOpenCoin(row.symbol, row.provider.name) },
-                    onLongClick = { onToggleFavorite(row) },
-                ),
+                onOpenCoin = onOpen,
+                onToggleFavorite = onToggle,
             )
         }
     }
@@ -301,21 +340,34 @@ private fun MarketGrid(
 /**
  * Card mercato 2-per-riga (stile TabTrader): badge, nome/simbolo, prezzo e
  * variazione %. In modalità Auto (più exchange) mostra anche l'exchange di
- * provenienza, così sai da quale mercato arriva il prezzo.
+ * provenienza, così sai da quale mercato arriva il prezzo. Il tick live della
+ * hot map (quando presente) sovrascrive prezzo/stats della cache per la riga.
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun MarketCard(
     row: MarketRow,
+    live: PriceTick?,
     showFavorite: Boolean,
     showFavoriteToggle: Boolean,
     showProvider: Boolean,
+    onOpenCoin: () -> Unit,
     onToggleFavorite: () -> Unit,
-    modifier: Modifier = Modifier,
 ) {
+    val display = if (live != null) row.copy(
+        price = live.price,
+        changePercent24h = live.changePercent24h,
+        high24h = live.high24h,
+        low24h = live.low24h,
+        quoteVolume24h = live.quoteVolume24h,
+    ) else row
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerLow,
         shape = RoundedCornerShape(18.dp),
-        modifier = modifier.neonCardFrame(RoundedCornerShape(18.dp)).fillMaxWidth(),
+        modifier = Modifier
+            .combinedClickable(onClick = onOpenCoin, onLongClick = onToggleFavorite)
+            .neonCardFrame(RoundedCornerShape(18.dp))
+            .fillMaxWidth(),
     ) {
         Column(
             modifier = Modifier
@@ -325,12 +377,12 @@ private fun MarketCard(
         ) {
             // Riga superiore: badge + nome/simbolo (+ toggle preferito in ricerca).
             Row(verticalAlignment = Alignment.CenterVertically) {
-                CoinBadge(base = row.base, size = 34.dp)
+                CoinBadge(base = display.base, size = 34.dp)
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            row.base,
+                            display.base,
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
@@ -351,7 +403,7 @@ private fun MarketCard(
                         // dell'exchange ha SEMPRE tutto lo spazio, non deve
                         // mai finire troncato (es. "C" per Coinbase).
                         Text(
-                            row.symbol,
+                            display.symbol,
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -361,7 +413,7 @@ private fun MarketCard(
                         if (showProvider) {
                             Spacer(Modifier.width(5.dp))
                             Text(
-                                row.provider.label,
+                                display.provider.label,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                                 maxLines = 1,
@@ -387,12 +439,12 @@ private fun MarketCard(
             // Prezzo + badge variazione.
             Row(verticalAlignment = Alignment.Bottom) {
                 PriceText(
-                    price = row.price,
+                    price = display.price,
                     fontSize = 17.sp,
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(6.dp))
-                ChangeBadge(percent = row.changePercent24h, compact = true)
+                ChangeBadge(percent = display.changePercent24h, compact = true)
             }
 
         }

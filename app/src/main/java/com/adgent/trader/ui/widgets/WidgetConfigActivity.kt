@@ -294,12 +294,12 @@ private fun WidgetConfigScreen(appWidgetId: Int, onClose: (Boolean) -> Unit) {
         // ---------- Aggiornamento automatico ----------
         SettingsBlock(
             title = "Auto refresh",
-            subtitle = "With the app closed Android allows at least 15 minutes. With the app open prices are live in real time.",
+            subtitle = "How often the widget updates on its own. Shorter = fresher prices but more battery. While the app is open prices are live anyway.",
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(
-                    15 to "15 min", 30 to "30 min", 60 to "1 hour",
-                    120 to "2 hours", 360 to "6 hours",
+                    5 to "5 min", 15 to "15 min", 30 to "30 min",
+                    60 to "1 hour", 120 to "2 hours", 360 to "6 hours",
                 ).forEach { (min, label) ->
                     FilterChip(
                         selected = refreshMinutes == min,

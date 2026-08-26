@@ -5,6 +5,7 @@ import android.content.Context
 import com.adgent.trader.core.database.TickerCacheDao
 import com.adgent.trader.core.database.TraderDatabase
 import com.adgent.trader.core.provider.AutoProviderRouter
+import com.adgent.trader.core.provider.LiveFocus
 import com.adgent.trader.core.provider.MarketCatalog
 import com.adgent.trader.core.provider.PriceFeedHub
 import com.adgent.trader.core.provider.ProviderRegistry
@@ -45,8 +46,8 @@ class AppContainer(app: Application) {
     private val db: TraderDatabase = TraderDatabase.build(app)
 
     val tickerCacheDao: TickerCacheDao = db.tickerCacheDao()
-    /** Cooldown anti-spam condiviso tra hub (WS in primo piano) e poller di
-     *  PriceFeedService (background): un alert appena scattato non riscatta al
+    /** Cooldown anti-spam condiviso tra hub (WS in primo piano) e worker di
+     *  verifica (background): un alert appena scattato non riscatta al
      *  passaggio foreground↔background. */
     val alertBoundaryIndex = AlertBoundaryIndex()
 
@@ -61,17 +62,21 @@ class AppContainer(app: Application) {
     val settingsRepo = SettingsRepository(app)
 
     val autoProviderRouter = AutoProviderRouter(mapper, providerRegistry)
+
+    /** Cosa guarda l'utente ora: guida le sottoscrizioni WS del hub. */
+    val liveFocus = LiveFocus()
+
     val priceFeedHub = PriceFeedHub(
         providerRegistry, watchlistRepo, settingsRepo, alertRepo, autoProviderRouter, mapper,
-        tickerCacheDao, alertBoundaryIndex, appScope,
+        tickerCacheDao, alertBoundaryIndex, liveFocus, appScope,
     )
     val marketDataRepo = MarketDataRepository(
         marketCatalog, providerRegistry, priceFeedHub, tickerCacheDao, mapper,
     )
     val chartRepo = ChartRepository(providerRegistry, db.klinesDao())
 
-    /** Chiude gli stream live della watchlist in background in modalità Risparmio. */
-    val liveFeedLifecycleController = LiveFeedLifecycleController(settingsRepo, priceFeedHub, appScope)
+    /** Chiude tutti gli stream live in background; gli alert passano al worker. */
+    val liveFeedLifecycleController = LiveFeedLifecycleController(app, settingsRepo, priceFeedHub, appScope)
 }
 
 class TraderApp : Application() {
@@ -85,17 +90,20 @@ class TraderApp : Application() {
         // impostazioni/salute provider e in SAVER chiude gli stream in background.
         container.priceFeedHub.start()
         container.liveFeedLifecycleController.attach()
-        // Canali notifica + feed realtime se la modalità dati lo prevede.
+        // Canali notifica (niente più servizio/notifica persistente).
         com.adgent.trader.core.notifications.Notifications.ensureChannels(this)
-        // Widget home screen: refresh periodico 15 min + subito ad ogni apertura app.
+        // Widget home screen: refresh periodico + subito ad ogni apertura app.
         com.adgent.trader.core.work.WidgetUpdateWorker.schedule(this)
+        // Avvisi in background: catena WorkManager adattiva, avviata solo se
+        // esistono regole attive (altrimenti zero wakeup).
         kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
             val mode = runCatching {
                 container.settingsRepo.settings.first().dataMode
             }.getOrDefault(DataMode.SAVER)
-            if (mode == DataMode.REALTIME) {
-                com.adgent.trader.core.service.PriceFeedController.start(this@TraderApp)
-            }
+            com.adgent.trader.core.work.AlertScheduler.scheduleIfRules(
+                this@TraderApp,
+                com.adgent.trader.core.work.AlertScheduler.initialDelayMs(mode),
+            )
         }
     }
 }

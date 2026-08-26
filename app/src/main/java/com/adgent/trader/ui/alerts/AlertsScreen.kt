@@ -42,6 +42,7 @@ import com.adgent.trader.appContainer
 import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.notifications.Notifications
+import com.adgent.trader.core.work.AlertScheduler
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.appViewModel
 import com.adgent.trader.ui.components.CoinBadge
@@ -49,6 +50,7 @@ import com.adgent.trader.ui.theme.neonCardFrame
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -70,11 +72,25 @@ class AlertsViewModel(container: AppContainer) : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AlertsUiState())
 
     fun setEnabled(rule: AlertRuleEntity, enabled: Boolean) {
-        viewModelScope.launch { container.alertRepo.setEnabled(rule.id, enabled) }
+        viewModelScope.launch {
+            container.alertRepo.setEnabled(rule.id, enabled)
+            rearmAlertChain()
+        }
     }
 
     fun delete(id: Long) {
-        viewModelScope.launch { container.alertRepo.delete(id) }
+        viewModelScope.launch {
+            container.alertRepo.delete(id)
+            rearmAlertChain()
+        }
+    }
+
+    /** Riallinea la catena WorkManager: parte/riparte se resta almeno una regola
+     *  attiva, si spegne se sono tutte disabilitate/cancellate. */
+    private suspend fun rearmAlertChain() {
+        val mode = runCatching { container.settingsRepo.settings.first().dataMode }
+            .getOrDefault(DataMode.SAVER)
+        AlertScheduler.scheduleIfRules(container.appContext, AlertScheduler.initialDelayMs(mode))
     }
 }
 
@@ -112,7 +128,7 @@ fun AlertsScreen(
             Spacer(Modifier.width(8.dp))
             Column {
                 Text(
-                    if (state.realtime) "Realtime · notification in ~1 second"
+                    if (state.realtime) "Live while open · background checks every 2-15 minutes"
                     else "Battery saver · checks every 15 minutes",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

@@ -38,7 +38,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import com.adgent.trader.AppContainer
-import com.adgent.trader.core.service.PriceFeedController
+import com.adgent.trader.core.work.AlertScheduler
 import com.adgent.trader.data.AppStyle
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.data.FavoritesStyle
@@ -80,10 +80,11 @@ class SettingsViewModel(private val container: AppContainer) : ViewModel() {
     fun setDefaultProvider(sel: com.adgent.trader.data.ProviderSelection) =
         viewModelScope.launch { repo.setDefaultProvider(sel) }
 
-    /** Cambia modalità dati e applica subito il servizio realtime on/off. */
+    /** Cambia modalità dati e ri-arma la catena di verifica avvisi (REALTIME
+     *  adattiva 2-15 min, SAVER fissa 15 min; niente servizio in background). */
     fun setDataMode(context: android.content.Context, mode: DataMode) = viewModelScope.launch {
         repo.setDataMode(mode)
-        PriceFeedController.applyMode(context, mode)
+        AlertScheduler.scheduleIfRules(context, AlertScheduler.initialDelayMs(mode))
     }
 
     fun setAppLock(enabled: Boolean) = viewModelScope.launch { repo.setAppLock(enabled) }
@@ -347,8 +348,9 @@ fun SettingsScreen(
         // ---------- Modalità dati ----------
         SettingsSection("Price alerts") {
             Text(
-                "How quickly price alerts arrive vs. how much battery the app uses. " +
-                    "Recommended: Battery saver for daily use.",
+                "Alerts run in the background without any service or permanent " +
+                    "notification. This choice sets the trade-off: how fast alerts " +
+                    "arrive vs. how much battery the app uses.",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -357,19 +359,20 @@ fun SettingsScreen(
                 Column(Modifier.weight(1f)) {
                     Text(
                         if (current.dataMode == DataMode.REALTIME)
-                            "Realtime · instant alerts, more battery"
+                            "Live while open · adaptive checks"
                         else
-                            "Battery saver · recommended",
+                            "Checks every 15 minutes · recommended",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         if (current.dataMode == DataMode.REALTIME)
-                            "Notification in ~1 second even with the app closed. Higher battery " +
-                                "use: keeps a persistent connection and a small notification."
+                            "While you watch the app, prices and alerts are instant. " +
+                                "In background: short wake-ups every 2-15 minutes, " +
+                                "faster the closer a price gets to a threshold."
                         else
-                            "Checks every 15 minutes: alerts arrive within 15 minutes, " +
-                                "near-zero battery impact, no persistent notification.",
+                            "One check every 15 minutes: alerts arrive within 15 " +
+                                "minutes, near-zero battery impact.",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -384,7 +387,7 @@ fun SettingsScreen(
 
             val manufacturer = android.os.Build.MANUFACTURER.lowercase()
             val aggressive = manufacturer in listOf("xiaomi", "huawei", "oppo", "vivo", "realme", "oneplus", "samsung")
-            if (aggressive && current.dataMode == DataMode.REALTIME) {
+            if (aggressive) {
                 Spacer(Modifier.height(8.dp))
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -399,8 +402,9 @@ fun SettingsScreen(
                         )
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "Some phones kill background apps. To guarantee alerts, " +
-                                "exclude XON Trader from battery optimization in phone settings.",
+                            "Some phones limit background work, which delays alerts. " +
+                                "To keep them reliable, exclude XON Trader from battery " +
+                                "optimization in phone settings.",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )

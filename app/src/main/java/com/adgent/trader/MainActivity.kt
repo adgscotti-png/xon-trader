@@ -109,6 +109,14 @@ private fun RootNav(settings: Settings?, handleIntent: Intent?) {
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
 
+    // Il live hub sottoscrive in WS solo ciò che l'utente sta guardando.
+    val liveFocus = androidx.compose.ui.platform.LocalContext.current.appContainer.liveFocus
+    val routeSymbol = backStack?.arguments?.getString("symbol")
+    val routeProvider = backStack?.arguments?.getString("provider")
+    LaunchedEffect(currentRoute, routeSymbol, routeProvider) {
+        liveFocus.onDestination(currentRoute, routeSymbol, routeProvider)
+    }
+
     val tabs = listOf(
         TopLevelItem("markets", "Markets", Icons.Rounded.CandlestickChart),
         TopLevelItem("favorites", "Favorites", Icons.Rounded.Star),

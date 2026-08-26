@@ -48,7 +48,7 @@ import com.adgent.trader.core.common.Format
 import com.adgent.trader.core.common.baseOf
 import com.adgent.trader.core.database.AlertRuleEntity
 import com.adgent.trader.core.model.AlertType
-import com.adgent.trader.core.service.PriceFeedController
+import com.adgent.trader.core.work.AlertScheduler
 import com.adgent.trader.data.DataMode
 import com.adgent.trader.ui.appViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -215,9 +215,11 @@ class AlertEditViewModel(
                 )
                 container.alertRepo.save(rule)
             }
-            if (container.settingsRepo.settings.first().dataMode == DataMode.REALTIME) {
-                PriceFeedController.start(context)
-            }
+            // Avvia (o ri-arma) la catena WorkManager di verifica avvisi: parte
+            // subito se realtime, alla prossima cadenza altrimenti.
+            val mode = runCatching { container.settingsRepo.settings.first().dataMode }
+                .getOrDefault(DataMode.SAVER)
+            AlertScheduler.scheduleIfRules(context, AlertScheduler.initialDelayMs(mode))
             _state.update { it.copy(saved = true) }
         }
     }
@@ -226,6 +228,10 @@ class AlertEditViewModel(
         val id = state.value.ruleId ?: return
         viewModelScope.launch {
             container.alertRepo.delete(id)
+            // Se era l'ultima regola la catena si spegne (zero wakeup), altrimenti ri-arma.
+            val mode = runCatching { container.settingsRepo.settings.first().dataMode }
+                .getOrDefault(DataMode.SAVER)
+            AlertScheduler.scheduleIfRules(context, AlertScheduler.initialDelayMs(mode))
             _state.update { it.copy(saved = true) }
         }
     }

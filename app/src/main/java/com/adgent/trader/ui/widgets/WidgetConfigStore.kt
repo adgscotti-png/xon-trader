@@ -93,11 +93,15 @@ object WidgetConfigStore {
 
     // ---------- Intervallo di refresh automatico (condiviso tra i widget) ----------
 
-    /** Minimo Android per WorkManager periodico con app chiusa: 15 minuti. */
-    const val MIN_REFRESH_MINUTES = 15
+    /** Intervallo più breve offerto (5 min): richiede la catena one-shot, perché
+     *  PeriodicWorkRequest ha un floor di 15 minuti con app chiusa. */
+    const val MIN_REFRESH_MINUTES = 5
+
+    /** Default consigliato: fresco senza pesare sulla batteria. */
+    const val DEFAULT_REFRESH_MINUTES = 15
 
     fun getRefreshMinutes(context: Context): Int =
-        prefs(context).getInt(KEY_REFRESH_MINUTES, MIN_REFRESH_MINUTES)
+        prefs(context).getInt(KEY_REFRESH_MINUTES, DEFAULT_REFRESH_MINUTES)
             .coerceAtLeast(MIN_REFRESH_MINUTES)
 
     fun setRefreshMinutes(context: Context, minutes: Int) {

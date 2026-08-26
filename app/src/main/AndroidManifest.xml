@@ -5,12 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
-    <!-- Avvisi prezzo: notifiche + servizio realtime + avvio al boot -->
+    <!-- Avvisi prezzo: notifiche + verifica in background (WorkManager) + avvio al boot -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <!-- specialUse: unico tipo FGS che Android 15 permette di avviare da
-         BOOT_COMPLETED; dataSync da boot lancia ForegroundServiceStartNotAllowedException. -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
@@ -39,15 +35,6 @@
                 <data android:scheme="adgent" android:host="coin" />
             </intent-filter>
         </activity>
-
-        <service
-            android:name=".core.service.PriceFeedService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="crypto_price_alerts_realtime_feed" />
-        </service>
 
         <receiver
             android:name=".core.service.BootReceiver"

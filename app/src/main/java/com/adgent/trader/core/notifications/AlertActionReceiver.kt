@@ -20,6 +20,16 @@ class AlertActionReceiver : BroadcastReceiver() {
                 val db = com.adgent.trader.core.database.TraderDatabase.build(context)
                 kotlinx.coroutines.runBlocking {
                     db.alertDao().setEnabled(ruleId, enabled = false)
+                    // Rimane qualche altra regola attiva? Allora la catena di
+                    // verifica prosegue; altrimenti si spegne (zero wakeup).
+                    if (db.alertDao().enabledRules().isNotEmpty()) {
+                        com.adgent.trader.core.work.AlertScheduler.schedule(
+                            context.applicationContext,
+                            0L,
+                        )
+                    } else {
+                        com.adgent.trader.core.work.AlertScheduler.cancel(context.applicationContext)
+                    }
                 }
                 db.close()
                 (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)

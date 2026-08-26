@@ -25,8 +25,8 @@ android {
         applicationId = "com.adgent.trader"
         minSdk = 26
         targetSdk = 36
-        versionCode = 20
-        versionName = "4.0.2c"
+        versionCode = 21
+        versionName = "4.0.5"
     }
 
     signingConfigs {

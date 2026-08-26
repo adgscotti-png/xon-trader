@@ -76,15 +76,16 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     init {
         val scope = viewModelScope
 
-        // Riga reattiva: cache del provider selezionato × watchlist × live hub.
+        // Riga reattiva: cache del provider selezionato × watchlist. Niente live qui:
+        // i tick live vengono sovrapposti per-riga nella UI dalla hot map dell'hub
+        // (ricomposizione solo della riga cambiata, non dell'intera griglia).
         scope.launch {
             selectedProvider
                 .flatMapLatest { sel ->
                     combine(
                         marketDataRepo.observeCached(sel.providerId, 300),
                         watchlistRepo.observe(),
-                        marketDataRepo.liveVersion(),
-                    ) { cached, favs, _ -> buildRows(cached, favs, sel) }
+                    ) { cached, favs -> buildRows(cached, favs, sel) }
                 }
                 .collect { rows ->
                     _state.update { it.copy(rows = applyFilter(rows, it.filter), loading = false) }
@@ -152,7 +153,7 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
         val primary = effectiveProviderId(sel) ?: return
         ensureCatalog(primary).join()
         var anyOk = false
-        for (pid in refreshTargets(sel)) {
+        for (pid in bootstrapTargets(sel)) {
             // Primo avvio / cache fredda: seeding dei top del provider, così la
             // lista "All" mostra il mercato e non solo i preferiti di default.
             if (marketDataRepo.observeCached(pid, 1).first().size < 30) {
@@ -178,15 +179,26 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
     }
 
     /**
-     * Provider da rinfrescare: in un chip specifico solo quello; in AUTO TUTTI i
-     * provider abilitati. Prima in AUTO si aggiornava solo il default (Binance):
-     * gli altri exchange restavano con prezzi vecchi di giorni e il ranking
-     * "All" mescolava dati freschi e stantii.
+     * Provider da rinfrescare (resume/refresh manuale): in un chip specifico solo
+     * quello; in AUTO TUTTI i provider abilitati — l'utente sta guardando la griglia
+     * combinata, quindi tutti devono essere freschi. Prima si scaricavano anche
+     * all'avvio: ora il bootstrap è lazy (vedi [bootstrapTargets]).
      */
     private suspend fun refreshTargets(sel: ProviderSelection): List<ProviderId> {
         sel.providerId?.let { return listOf(it) }
         val ids = registry.enabledIds().toList()
         return ids.ifEmpty { listOf(ProviderId.BINANCE) }
+    }
+
+    /**
+     * Provider da SEEDARE all'apertura: solo quello che l'utente vede (il chip
+     * selezionato o, in AUTO, la fonte primaria). Gli altri exchange si popolano
+     * quando li visiti (chip) o al refresh manuale. Risparmia fino a 7×120 ticker
+     * + 7×40 sparkline a ogni avvio: la griglia appare subito dalla cache.
+     */
+    private suspend fun bootstrapTargets(sel: ProviderSelection): List<ProviderId> {
+        sel.providerId?.let { return listOf(it) }
+        return listOf(effectiveProviderId(sel) ?: ProviderId.BINANCE)
     }
 
     /** AUTO → default configurato; altrimenti il provider del chip. */
@@ -230,18 +242,17 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
         val favKeys = favorites.map { "${it.provider}:${it.symbol}" }.toSet()
         return cached.mapNotNull { c ->
             val provider = ProviderId.fromName(c.provider) ?: ProviderId.BINANCE
-            val liveTick = marketDataRepo.liveTick(provider, c.symbol)
             val isFavorite = "${c.provider}:${c.symbol}" in favKeys
             MarketRow(
                 symbol = c.symbol,
                 base = bases[c.symbol]
                     ?: marketDataRepo.fromCompact(c.symbol)?.base
                     ?: c.symbol.removeSuffix("USDT"),
-                price = liveTick?.price ?: c.price,
-                changePercent24h = liveTick?.changePercent24h ?: c.changePercent24h,
-                high24h = liveTick?.high24h ?: c.high24h,
-                low24h = liveTick?.low24h ?: c.low24h,
-                quoteVolume24h = liveTick?.quoteVolume24h ?: c.quoteVolume24h,
+                price = c.price,
+                changePercent24h = c.changePercent24h,
+                high24h = c.high24h,
+                low24h = c.low24h,
+                quoteVolume24h = c.quoteVolume24h,
                 sparkline = c.sparkline.split(",").mapNotNull { s -> s.toDoubleOrNull() },
                 isFavorite = isFavorite,
                 provider = provider,
@@ -314,16 +325,15 @@ class MarketsViewModel(container: AppContainer) : ViewModel() {
                 it.copy(
                     searchResults = ranked.map { s ->
                         fresh[s.symbol]?.let { c ->
-                            val liveTick = marketDataRepo.liveTick(pid, c.symbol)
                             val isFav = "${pid.name}:${c.symbol}" in favKeys
                             MarketRow(
                                 symbol = c.symbol,
                                 base = bases[c.symbol] ?: s.base,
-                                price = liveTick?.price ?: c.price,
-                                changePercent24h = liveTick?.changePercent24h ?: c.changePercent24h,
-                                high24h = liveTick?.high24h ?: c.high24h,
-                                low24h = liveTick?.low24h ?: c.low24h,
-                                quoteVolume24h = liveTick?.quoteVolume24h ?: c.quoteVolume24h,
+                                price = c.price,
+                                changePercent24h = c.changePercent24h,
+                                high24h = c.high24h,
+                                low24h = c.low24h,
+                                quoteVolume24h = c.quoteVolume24h,
                                 sparkline = c.sparkline.split(",").mapNotNull { v -> v.toDoubleOrNull() },
                                 isFavorite = isFav,
                                 provider = pid,
